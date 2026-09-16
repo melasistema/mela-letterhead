@@ -1,0 +1,202 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  Your letterhead.
+#
+#  Everything below has a default, so you can delete any line you are happy
+#  with. What you almost certainly want to change is the brand block, the
+#  palette, and the footer — that last one carries your real legal details.
+#
+#  ── Two things worth knowing before you edit ──
+#
+#  Lengths take a unit: 22mm, 1in, 11.5pt. A bare number means points.
+#
+#  Any text below can be written once per language, and the tool picks the one
+#  matching the document it is printing:
+#
+#      label: Reference                                 one language
+#      label: { en: Reference, it: Codice, de: Kennzeichen }   several
+#
+#  A document chooses its language in its own front matter (`lang: de`).
+#  Anything with no translation for that language falls back to `language:`
+#  below, then to English — a half-translated letterhead still prints.
+# ════════════════════════════════════════════════════════════════════════════
+
+version: 1
+
+# Language for documents that do not declare one of their own.
+language: en
+
+brand:
+  name: Acme Studio
+
+  # Relative to this file. PNG, JPEG and SVG all work.
+  # Delete this line to set the brand name as a typographic wordmark instead —
+  # a perfectly good letterhead for anyone without a logo.
+  logo: assets/logo.svg
+
+  # Written into the PDF's metadata. Defaults to the brand name.
+  # author: Jane Doe
+
+# ── Paper ───────────────────────────────────────────────────────────────────
+page:
+  size: a4 # a3 a4 a5 b5 letter legal executive, or `a4-landscape`
+  margin:
+    x: 22mm
+    top: 27.5mm # inner pages; page one is pushed down by the header band
+    bottom: 39.5mm # the last page gains what the footer band needs
+
+# ── Colour ──────────────────────────────────────────────────────────────────
+# Change `accent` first: it carries the headings, the list markers and the
+# links, and it is what makes the paper look like yours.
+palette:
+  band: "#f5f5f7" # the header and footer bands
+  rule: "#e6e3ec" # the thin line along a band's inner edge
+  accent: "#4a3f8a"
+  ink: "#1c1c20" # body text
+  muted: "#6f6b74" # running header, lines left to fill in by hand
+  highlight: "#a4262c" # a footer row that has to catch the eye, such as an IBAN
+  hairline: "#dcd9e2" # rules between sections and table rows
+
+# ── Type ────────────────────────────────────────────────────────────────────
+# Each entry is a fallback stack: the first font installed wins. Typst carries
+# Libertinus Serif and DejaVu Sans Mono itself, so those two stacks resolve
+# anywhere; it carries no sans face, so that stack names what macOS, Windows
+# and the common Linux font packages provide, in turn. When nothing in a stack
+# is installed Typst substitutes silently and the page changes without saying
+# so — run `mela-letterhead check` to see which font you are actually getting.
+fonts:
+  serif: ["Libertinus Serif", "New Computer Modern"]
+  sans: ["Helvetica Neue", "Inter", "Arial", "Liberation Sans", "DejaVu Sans"]
+  mono: ["DejaVu Sans Mono", "Menlo", "Consolas"]
+  # Used for the footer band. Defaults to the serif stack.
+  # display: ["Libertinus Serif"]
+  # Directories of font files to load besides the system's.
+  # paths: [assets/fonts]
+
+typography:
+  size: 11pt
+  leading: 0.82 # multiples of the font size, so they scale with the text
+  paragraph_spacing: 0.95
+  justify: true
+  hyphenate: true
+  headings:
+    h1: 15pt
+    h2: 12.5pt
+    h3: 10.6pt
+    h4: 10pt
+
+# ── The band across the top of page one ─────────────────────────────────────
+header:
+  show: true
+  height: 43mm
+
+  logo:
+    width: 67mm
+    y: 11.8mm # from the top of the page
+
+  fields:
+    align: right
+
+    # What happens to a field whose document leaves it empty:
+    #   rule  — print a line to fill in by hand (good for a reference number
+    #           that is not issued yet)
+    #   blank — print the label and nothing after it
+    #   hide  — leave the field out altogether
+    when_empty: rule
+
+    # These are yours to define — four here, but there is nothing special
+    # about four. `key` names a value in a document's front matter; write
+    # `value:` instead for something that never changes.
+    #
+    # Punctuation belongs in the label, because not every language puts it in
+    # the same place: "Date:" in English, "Date :" in French.
+    items:
+      - key: type
+        label: { en: "Type:", it: "Tipologia:", de: "Art:" }
+      - key: reference
+        label: { en: "Reference:", it: "Codice:", de: "Kennzeichen:" }
+      - key: date
+        label: { en: "Date:", it: "Data:", de: "Datum:" }
+      - key: validity
+        label: { en: "Valid for:", it: "Validità:", de: "Gültig:" }
+
+# ── The reduced header on every page after the first ────────────────────────
+running:
+  show: true
+  logo_width: 26mm
+  # Placeholders: {title} {brand} {page} {pages}
+  # Left out, this comes from the locale pack — English ships with the tool,
+  # and you add a language by dropping locales/<code>.yaml beside this file.
+  # format: "{title} · page {page} of {pages}"
+
+# ── The band across the bottom of the last page ─────────────────────────────
+# Replace every value here with your own. Columns are laid out evenly, so two
+# give you two halves and three give you thirds.
+#
+# A row can be written three ways:
+#   - A plain line with no label
+#   - [Label, value]
+#   - label:/value:, plus `link:` for a hyperlink and `style: highlight`
+#     to pick the value out in the highlight colour.
+# An e-mail address becomes a mailto: link on its own.
+footer:
+  show: true
+  pages: last # or `all`, to print it on every page
+  height: 50.2mm
+  align: center
+
+  columns:
+    - title: { en: Acme Studio, it: Acme Studio }
+      rows:
+        - label: { en: "Office:", it: "Sede legale:" }
+          value: 12 Example Street
+        - 00100 Exampleton
+        - ["Tel.", "+00 000 000 0000"]
+        - label: { en: "e-mail:", it: "e-mail:" }
+          value: hello@acme.example
+        - label: { en: "VAT:", it: "P. IVA:" }
+          value: IT00000000000
+
+    - title: { en: Bank details, it: Coordinate bancarie }
+      rows:
+        - label: "IBAN:"
+          value: IT00 X000 0000 0000 0000 0000 000
+          style: highlight
+        - ["BIC:", "XXXXITXXXXX"]
+        - Example Bank, Exampleton branch
+        - 1 Bank Square, 00100 Exampleton
+
+# ── How the Markdown is read ────────────────────────────────────────────────
+markdown:
+  # Add +hard_line_breaks if you write one sentence per line and want every
+  # one of those breaks on paper. Without it — the default — a paragraph is
+  # reflowed to the column, which is what you want for prose.
+  format: markdown
+
+  # Pandoc reads a Typst column's width from the number of dashes you typed in
+  # the separator row, which makes `|---|---:|` give a column holding one word
+  # the same width as one holding a sentence. This recomputes the widths from
+  # what is actually in each column, keeping your `:` alignments.
+  rewrite_table_widths: true
+
+  # Drop `---` rules. On paper the hierarchy is already carried by the rules
+  # above the headings, and a full-width line on top of that reads as heavy.
+  drop_horizontal_rules: true
+
+  # Set a table's header row in bold.
+  bold_table_header: true
+
+# ── Which files get built, and where they land ──────────────────────────────
+documents:
+  source: .
+  output: .
+  include: ["*.md"]
+  exclude: ["README.md", "CHANGELOG.md", "LICENSE.md"]
+
+  # YAML reads an unquoted `date: 2026-09-14` as a date rather than text, and
+  # this is how such a value is printed. Quote it in the front matter instead
+  # to write it exactly as you want it to appear.
+  date_format: "%Y-%m-%d"
+
+# Intermediates. Safe to delete, worth reading when a document does not come
+# out the way you expected — `mela-letterhead build --keep-build` leaves them.
+build_dir: .letterhead-build

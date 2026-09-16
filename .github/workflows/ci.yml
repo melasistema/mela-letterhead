@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # The end-to-end tests skip themselves when either of these is missing,
+      # so the rest of the suite still runs if an install here ever breaks.
+      - name: Install Pandoc
+        run: sudo apt-get update && sudo apt-get install --yes pandoc
+
+      - name: Install Typst
+        uses: typst-community/setup-typst@v4
+
+      - name: Install the package
+        run: pip install -e ".[dev]"
+
+      - name: Run the tests
+        run: pytest -v
+
+      - name: Build the scaffolded letterhead end to end
+        run: |
+          mkdir -p /tmp/smoke
+          cd /tmp/smoke
+          mela-letterhead init .
+          mela-letterhead check
+          mela-letterhead build
+          test -f example-letter.pdf

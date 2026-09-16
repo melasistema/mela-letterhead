@@ -1,0 +1,38 @@
+$-- mela-letterhead · Pandoc template for the Typst writer
+$--
+$-- Pandoc's default Typst template calls a `conf` function from a document
+$-- class; this one calls `letterhead` instead, and hands it the resolved
+$-- configuration the tool has just written next to the generated file. No
+$-- document values travel through Pandoc metadata: they are all in the JSON.
+$--
+$-- What remains of Pandoc's own preamble is what the generated body may refer
+$-- to — the horizontal-rule helper, definition-list indentation, caption
+$-- placement, and the syntax-highlighting functions emitted for fenced code
+$-- blocks that name a language.
+$if(highlighting-definitions)$
+$highlighting-definitions$
+
+$endif$
+#set terms(hanging-indent: 1.5em)
+
+#let horizontalRule = line(start: (25%, 0%), end: (75%, 0%))
+// Polyfill so a document written for Typst >= 0.15 still compiles below it:
+#let divider = if "divider" in std { divider } else { horizontalRule }
+
+#show figure.where(kind: table): set figure.caption(position: $if(table-caption-position)$$table-caption-position$$else$top$endif$)
+#show figure.where(kind: image): set figure.caption(position: $if(figure-caption-position)$$figure-caption-position$$else$bottom$endif$)
+
+$if(smart)$
+$else$
+#set smartquote(enabled: false)
+
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+#import "letterhead.typ": letterhead
+
+#show: doc => letterhead(json("document.json"), doc)
+
+$body$

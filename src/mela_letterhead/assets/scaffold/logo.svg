@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 80" width="360" height="80" role="img" aria-label="Acme Studio">
+  <!--
+    Placeholder mark for a company that does not exist. Replace this file with
+    your own logo — PNG, JPEG and SVG all work, and the width it is drawn at
+    comes from `header.logo.width` in letterhead.yaml, so its proportions need
+    not match these.
+
+    One caveat if you keep to SVG: the text below is drawn with whatever font
+    the machine has, so a logo built from live text can shift between
+    computers. A logo with its letterforms converted to paths — every vector
+    editor will do this, usually as "convert to outlines" — is the same
+    everywhere. A PNG at 600 ppi or more is the simple way out.
+  -->
+  <rect x="0" y="12" width="56" height="56" rx="16" fill="#4a3f8a"/>
+  <path d="M16 52 L28 25 L40 52" fill="none" stroke="#ffffff" stroke-width="4.5"
+        stroke-linejoin="round" stroke-linecap="round"/>
+  <text x="76" y="46" font-family="Helvetica Neue, Helvetica, Arial, Liberation Sans, sans-serif"
+        font-size="30" font-weight="700" letter-spacing="1.5" fill="#1c1c20">ACME</text>
+  <text x="78" y="67" font-family="Helvetica Neue, Helvetica, Arial, Liberation Sans, sans-serif"
+        font-size="13" font-weight="400" letter-spacing="6" fill="#6f6b74">STUDIO</text>
+</svg>

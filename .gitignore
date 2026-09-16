@@ -1,0 +1,50 @@
+# ── IDE and References ────────────────────────────────
+.idea/
+.nova/
+.vscode/
+.zed/
+references/
+
+# ── Python virtual environment ────────────────────────────────
+.venv/
+venv/
+
+# ── Python build and test artefacts ───────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# ── mela-letterhead intermediates and output ──────────────────
+# Rewritten on every build; `build --keep-build` is what leaves them behind.
+.letterhead-build/
+# A build writes its PDF beside the source, so running the scaffold anywhere in
+# the tree drops one here. Nothing this project ships is a PDF.
+*.pdf
+# What `mela-letterhead init .` writes if it is ever run at the repo root.
+/letterhead.yaml
+/example-letter.md
+/assets/logo.*
+
+# ── Agents ───────────────────────────────────────────────
+.antigravitycli/
+.claude/
+GEMINI.md
+CLAUDE.md
+AGENTS.md
+
+# ── Editor and OS noise ───────────────────────────────────────
+.DS_Store
+*.swp
+*~

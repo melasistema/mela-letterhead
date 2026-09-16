@@ -1,0 +1,21 @@
+# English locale pack — the fallback for every other language.
+#
+# These are the few strings the tool writes itself. Everything else on the page
+# (field labels, footer rows, the brand name) is yours, and lives in
+# letterhead.yaml.
+#
+# To add a language, copy this file to `locales/<tag>.yaml` next to your
+# letterhead.yaml — for example `locales/it.yaml` — and translate the values.
+# Anything you leave out falls back to English. No code changes, no rebuild.
+#
+# Placeholders:
+#   {title}  the document's running title
+#   {brand}  the brand name
+#   {page}   the current page number
+#   {pages}  the total number of pages
+
+# Line printed at the top of every page after the first.
+running_header: "{title} · page {page} of {pages}"
+
+# Used when a document declares no title of its own.
+untitled: "Untitled document"
