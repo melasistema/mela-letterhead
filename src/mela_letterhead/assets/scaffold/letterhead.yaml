@@ -143,6 +143,10 @@ footer:
   pages: last # or `all`, to print it on every page
   height: 50.2mm
   align: center
+  # Air between the rows of a column. The band centres whatever it holds, so
+  # raising this eats into the space above and below rather than moving the
+  # rows down; raise `height` too if a column of yours runs long.
+  leading: 6.9pt
 
   columns:
     - title: { en: Acme Studio, it: Acme Studio }

@@ -167,7 +167,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "align": "center",
         "title_size": "15pt",
         "size": "11pt",
-        "leading": "2pt",
+        # Air between the rows of a column. Kept in the same proportion to the
+        # text as the header fields' own leading is to theirs, so both blocks
+        # of detail read alike; the band centres its content, so a taller
+        # column simply eats into the space above and below it.
+        "leading": "6.9pt",
         "title_gap": "6pt",
         # Gutter between columns.
         "gutter": "40pt",
