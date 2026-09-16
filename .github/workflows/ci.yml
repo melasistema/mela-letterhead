@@ -15,20 +15,26 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
 
       # The end-to-end tests skip themselves when either of these is missing,
       # so the rest of the suite still runs if an install here ever breaks.
+      #
+      # Ubuntu's Pandoc is 3.1, several releases behind the 3.11 this was
+      # developed against, and its Typst writer spells some helpers
+      # differently. That is on purpose: `apt install pandoc` is what the
+      # tool's own install hint tells Debian users to run, so this job is
+      # where that combination gets tested.
       - name: Install Pandoc
         run: sudo apt-get update && sudo apt-get install --yes pandoc
 
       - name: Install Typst
-        uses: typst-community/setup-typst@v4
+        uses: typst-community/setup-typst@v5
 
       - name: Install the package
         run: pip install -e ".[dev]"

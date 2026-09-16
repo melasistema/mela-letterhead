@@ -19,6 +19,14 @@ $endif$
 // Polyfill so a document written for Typst >= 0.15 still compiles below it:
 #let divider = if "divider" in std { divider } else { horizontalRule }
 
+// Polyfills for older Pandoc releases, whose Typst writer spells two helpers
+// differently. Debian and Ubuntu still ship Pandoc 3.1, which emits
+// `#blockquote[...]` where 3.11 emits Typst's own `#quote(block: true)[...]`,
+// and `#horizontalrule` where 3.11 emits `#divider`. Mapping the old names
+// onto the new ones keeps one set of show rules in letterhead.typ.
+#let blockquote(body) = quote(block: true, body)
+#let horizontalrule = horizontalRule
+
 #show figure.where(kind: table): set figure.caption(position: $if(table-caption-position)$$table-caption-position$$else$top$endif$)
 #show figure.where(kind: image): set figure.caption(position: $if(figure-caption-position)$$figure-caption-position$$else$bottom$endif$)
 

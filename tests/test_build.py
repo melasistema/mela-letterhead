@@ -83,6 +83,26 @@ class TestBuild:
         results = builder.build_all(config)
         assert results[0].pdf.read_bytes().startswith(b"%PDF")
 
+    def test_the_spellings_of_older_pandoc_still_compile(self, project):
+        # Debian and Ubuntu ship Pandoc 3.1, whose Typst writer emits
+        # `#blockquote[...]` and `#horizontalrule` where 3.11 emits
+        # `#quote(block: true)[...]` and `#divider`. The Pandoc template
+        # polyfills the older names; this is what proves it without an older
+        # Pandoc to hand.
+        config = config_module.load(project / "letterhead.yaml")
+        builder.build_all(config, keep_build=True)
+        workdir = config.build_dir / "example-letter"
+        generated = workdir / "document.typ"
+        old_style = generated.read_text(encoding="utf-8").replace(
+            "#quote(block: true)[", "#blockquote["
+        )
+        assert "#blockquote[" in old_style, "the scaffold no longer has a block quotation"
+        generated.write_text(old_style + "\n#horizontalrule\n", encoding="utf-8")
+
+        pdf = workdir / "older-pandoc.pdf"
+        builder._run_typst(config, workdir, generated, pdf)
+        assert pdf.read_bytes().startswith(b"%PDF")
+
     def test_output_goes_where_the_configuration_says(self, project):
         text = (project / "letterhead.yaml").read_text(encoding="utf-8")
         (project / "letterhead.yaml").write_text(
