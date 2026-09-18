@@ -15,7 +15,7 @@ trade, country or language, and every label can be written once per language, so
 the same letterhead prints an *Angebot* in German and an *offerta* in Italian
 without a second configuration.
 
-Under the hood it is Pandoc and [Typst](https://typst.app) — so the typesetting
+Under the hood it is [Pandoc](https://github.com/jgm/pandoc) and [Typst](https://typst.app) — so the typesetting
 is real typesetting, not HTML pretending to be a page.
 
 <p align="center">
