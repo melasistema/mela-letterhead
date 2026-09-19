@@ -159,6 +159,31 @@ class TestResolve:
         assert "Heading" in resolved["running"]["text"]
 
 
+class TestImages:
+    def _images(self, tmp_path, text=MINIMAL):
+        resolved = config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), "en"
+        )
+        return resolved["images"]
+
+    def test_auto_is_no_width_at_all(self, tmp_path):
+        # Not 100%: an image with no width of its own keeps its natural size,
+        # which is not the same as one filling the column.
+        assert self._images(tmp_path)["width"] is None
+
+    def test_a_share_becomes_a_fraction(self, tmp_path):
+        images = self._images(tmp_path, MINIMAL + "images:\n  width: 70%\n")
+        assert images["width"] == pytest.approx(0.7)
+
+    def test_the_caption_is_measured_in_points(self, tmp_path):
+        images = self._images(tmp_path, MINIMAL + "images:\n  caption:\n    gap: 1in\n")
+        assert images["caption"]["gap"] == pytest.approx(72.0)
+
+    def test_an_alignment_that_is_not_one_is_refused(self, tmp_path):
+        with pytest.raises(ConfigError, match="images.align"):
+            self._images(tmp_path, MINIMAL + "images:\n  align: middle\n")
+
+
 class TestFooterRows:
     def _rows(self, tmp_path):
         resolved = config_module.resolve(

@@ -100,7 +100,29 @@ out in high wind, and any day lost to weather extends the end date by one day.
 The report is delivered as a PDF, with photographs, in English. A version in
 another language can be supplied on request at no extra charge.
 
-## 6. Acceptance
+## 6. What the report looks like
+
+Every collection point is drawn on the same schematic, so that four surveys can
+be read side by side rather than one after another.
+
+![Each point is drawn to this arrangement: catchment surface, downpipe,
+first-flush diverter and storage tank, with the fall between the surface and
+the tank inlet measured at the right-hand edge.](assets/plate-collection-point.svg){width=82%}
+
+The verdicts are then summarised twice — as a grading of the four points
+against the threshold below which one is beyond economic repair, and on a plan
+of the roof showing where they sit on the manifold they share.
+
+![](assets/plate-condition.svg){width=48%} ![](assets/plate-roof-plan.svg){width=48%}
+
+Those three drawings are ordinary files sitting beside this document, written
+`![caption](assets/plate.svg)` — PNG, JPEG, SVG and WebP all work. The width
+after one, `{width=48%}`, is a share of the column, which is how two of them
+come to stand side by side. A picture given a caption becomes a figure of its
+own, centred, with the caption set beneath it; one given none stays in the line
+it was written in.
+
+## 7. Acceptance
 
 This quotation is valid for 60 days from its date, extendable on request. To
 accept it, return a signed copy of this page, or issue a purchase order quoting

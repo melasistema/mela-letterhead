@@ -17,6 +17,13 @@ from .errors import LetterheadError
 
 SCAFFOLD = Path(__file__).parent / "assets" / "scaffold"
 
+#: The drawings the example document prints, copied beside the logo.
+SCAFFOLD_PLATES = (
+    "plate-collection-point.svg",
+    "plate-condition.svg",
+    "plate-roof-plan.svg",
+)
+
 _USE_COLOUR = sys.stdout.isatty()
 
 
@@ -58,6 +65,11 @@ def command_init(args: argparse.Namespace) -> int:
         (SCAFFOLD / "letterhead.yaml", target / config_module.CONFIG_FILENAME),
         (SCAFFOLD / "logo.svg", target / "assets" / "logo.svg"),
         (SCAFFOLD / "example-letter.md", target / "example-letter.md"),
+        # The plates the example document prints. Nothing else needs them.
+        *[
+            (SCAFFOLD / name, target / "assets" / name)
+            for name in SCAFFOLD_PLATES
+        ],
     ]
 
     existing = [destination for _, destination in files if destination.exists()]

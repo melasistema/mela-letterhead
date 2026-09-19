@@ -40,6 +40,25 @@ class TestToEm:
             units.to_em("9pt", "typography.leading")
 
 
+class TestToRatio:
+    def test_a_percentage_and_a_fraction_agree(self):
+        assert units.to_ratio("60%", "x") == pytest.approx(0.6)
+        assert units.to_ratio(0.6, "x") == pytest.approx(0.6)
+        assert units.to_ratio("100%", "x") == pytest.approx(1.0)
+
+    def test_a_bare_number_is_never_a_percentage(self):
+        # `width: 60` means sixty times the column, which is a typo for 60%
+        # every time. Refusing it here names the setting; letting it through
+        # prints an image running off the page.
+        with pytest.raises(ConfigError, match="images.width"):
+            units.to_ratio(60, "images.width")
+
+    @pytest.mark.parametrize("value", ["wide", "0%", -1, True, None])
+    def test_rejected_forms(self, value):
+        with pytest.raises(ConfigError, match="images.width"):
+            units.to_ratio(value, "images.width")
+
+
 class TestToColour:
     @pytest.mark.parametrize("value", ["#fff", "#f5f5f7", "#00000080"])
     def test_accepted_forms(self, value):

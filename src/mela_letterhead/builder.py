@@ -14,12 +14,20 @@ The stages:
 3. stage the build directory;
 4. rewrite the Markdown for typesetting (:mod:`~mela_letterhead.markdown_prep`);
 5. Pandoc, Markdown to Typst;
-6. Typst, to PDF.
+6. stage the pictures the generated Typst asks for;
+7. Typst, to PDF.
+
+Step 6 comes after Pandoc because Pandoc is what says which pictures the
+document actually uses: it writes each one as an ``image("…")`` call, path for
+path as the Markdown had it. Those paths mean nothing inside the build
+directory — Typst compiles with its root set there and can read nothing above
+it — so each file is copied in and the call rewritten to where it landed.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence
@@ -34,7 +42,22 @@ ASSETS = Path(__file__).parent / "assets"
 
 #: Image formats Typst can place. Anything else is refused here rather than
 #: halfway through a compile.
-LOGO_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
+
+#: Where a document's pictures are copied to inside its build directory.
+IMAGE_DIR = "images"
+
+#: An ``image("…")`` call in the Typst that Pandoc generated. Pandoc writes the
+#: path exactly as the Markdown had it, escaping only quotes and backslashes.
+_IMAGE_CALL_RE = re.compile(r'(image\(\s*")((?:[^"\\]|\\.)*)(")')
+
+#: A reference to something that is not a file. Typst places files, and fetches
+#: nothing. Written narrowly so that a Windows path is not read as a scheme.
+_REMOTE_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|data:)", re.IGNORECASE)
+
+#: Characters kept in a staged picture's name. Everything else becomes a dash,
+#: so that a name with a space or an accent in it cannot surprise the compiler.
+_UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 class BuildResult(NamedTuple):
@@ -102,6 +125,7 @@ def build_document(config: Config, source: Path, keep_build: bool = False) -> Bu
 
     generated = workdir / "document.typ"
     _run_pandoc(config, prepared, generated)
+    _stage_images(source.parent, workdir, generated)
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -154,8 +178,8 @@ def _stage_logo(config: Config, workdir: Path) -> Optional[str]:
         )
 
     suffix = source.suffix.lower()
-    if suffix not in LOGO_SUFFIXES:
-        formats = ", ".join(sorted(LOGO_SUFFIXES))
+    if suffix not in IMAGE_SUFFIXES:
+        formats = ", ".join(sorted(IMAGE_SUFFIXES))
         raise ConfigError(
             f"brand.logo: Typst cannot place a {suffix or 'file with no extension'}",
             hint=f"Use one of: {formats}.",
@@ -164,6 +188,93 @@ def _stage_logo(config: Config, workdir: Path) -> Optional[str]:
     name = "logo" + suffix
     shutil.copy2(source, workdir / name)
     return name
+
+
+def _stage_images(source_dir: Path, workdir: Path, generated: Path) -> List[str]:
+    """Copy the pictures the generated Typst asks for, and repoint it at them.
+
+    Paths are read relative to the document that names them, which is where a
+    writer looking at the Markdown would expect them to be. Every file lands in
+    one directory under its own name, so the build directory shows at a glance
+    what the document is carrying; a name used twice gains a number.
+    """
+    text = generated.read_text(encoding="utf-8")
+    staged: Dict[str, str] = {}
+    taken: Dict[Path, str] = {}
+
+    def place(match: "re.Match[str]") -> str:
+        written = _unescape(match.group(2))
+        if written not in staged:
+            staged[written] = _stage_one_image(source_dir, workdir, written, taken)
+        return match.group(1) + staged[written] + match.group(3)
+
+    rewritten = _IMAGE_CALL_RE.sub(place, text)
+    if staged:
+        generated.write_text(rewritten, encoding="utf-8")
+    # By staged name, not by the spellings that reached it: `plate.svg` and
+    # `./plate.svg` are one picture, copied once.
+    return sorted(set(staged.values()))
+
+
+def _stage_one_image(
+    source_dir: Path, workdir: Path, written: str, taken: Dict[Path, str]
+) -> str:
+    """Copy one picture into the build directory and return its name there."""
+    if _REMOTE_RE.match(written):
+        raise BuildError(
+            f"{written}: Typst places files and fetches nothing",
+            hint="Download the picture next to the document and refer to it by "
+            "its file name.",
+        )
+
+    source = Path(written).expanduser()
+    if not source.is_absolute():
+        source = source_dir / source
+
+    if not source.is_file():
+        raise BuildError(
+            f"{written}: no such picture",
+            hint=f"The path is read relative to the document, in {source_dir}.",
+        )
+
+    source = source.resolve()
+    if source in taken:
+        return taken[source]
+
+    suffix = source.suffix.lower()
+    if suffix not in IMAGE_SUFFIXES:
+        formats = ", ".join(sorted(IMAGE_SUFFIXES))
+        raise BuildError(
+            f"{written}: Typst cannot place a {suffix or 'file with no extension'}",
+            hint=f"Use one of: {formats}.",
+        )
+
+    used = {placed.rpartition("/")[2] for placed in taken.values()}
+    name = _unique_name(_UNSAFE_RE.sub("-", source.name), used)
+    destination = workdir / IMAGE_DIR / name
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+
+    placed = f"{IMAGE_DIR}/{name}"
+    taken[source] = placed
+    return placed
+
+
+def _unique_name(name: str, used: "set[str]") -> str:
+    """Number a name that two different files would otherwise share."""
+    if name not in used:
+        return name
+    stem, _, suffix = name.rpartition(".")
+    stem, suffix = (stem, f".{suffix}") if stem else (name, "")
+    index = 2
+    while f"{stem}-{index}{suffix}" in used:
+        index += 1
+    return f"{stem}-{index}{suffix}"
+
+
+def _unescape(path: str) -> str:
+    """Undo the escaping Pandoc applies inside a Typst string literal."""
+    return path.replace('\\"', '"').replace("\\\\", "\\")
 
 
 def _run_pandoc(config: Config, source: Path, target: Path) -> None:

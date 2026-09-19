@@ -42,6 +42,12 @@ list of rows. E-mail addresses become links on their own; an IBAN can be picked
 out in the highlight colour. The block centres itself in the band, so you can
 add or remove a row without touching an offset.
 
+**Pictures, where the text needs them.** A drawing, a plan, a photograph of the
+work: `![caption](plate.svg)` puts it on the page — PNG, JPEG, GIF, SVG and
+WebP — and `{width=48%}` beside it makes two stand side by side. A picture with
+a caption becomes a figure, centred and captioned in the letterhead's own type;
+one without stays in the line it was written in.
+
 **Every language, including yours.** Any string in the configuration can be
 written as a mapping from language tag to translation. A document picks its
 language in its front matter, and a missing translation falls back rather than
@@ -52,8 +58,8 @@ typographic wordmark, measured and scaled to occupy exactly the width the logo
 would have.
 
 <p align="center">
-  <img src="assets/screenshots/03-last-page.png" width="880"
-       alt="The last page of the same quotation: signature lines rendered as grey monospaced fields, and at the foot of the page a band with two centred columns — the company's office, telephone, e-mail and VAT number on the left, the bank details with the IBAN in red on the right." />
+  <img src="assets/screenshots/04-last-page.png" width="880"
+       alt="The last page of the same quotation: two drawings side by side at the top, signature lines rendered as grey monospaced fields below, and at the foot of the page a band with two centred columns — the company's office, telephone, e-mail and VAT number on the left, the bank details with the IBAN in red on the right." />
 </p>
 
 ---
@@ -105,9 +111,9 @@ mkdir ~/quotations && cd ~/quotations
 mela-letterhead init .
 ```
 
-That writes three files: a fully commented `letterhead.yaml`, a placeholder
-`assets/logo.svg`, and `example-letter.md` — a three-page quotation for a
-company that does not exist, which exercises every part of the layout.
+That writes a fully commented `letterhead.yaml`, a placeholder `assets/logo.svg`,
+`example-letter.md` — a four-page quotation for a company that does not exist,
+which exercises every part of the layout — and the three drawings it prints.
 
 Check that everything it needs is present:
 
@@ -346,7 +352,7 @@ follow it — Italian gets its curly apostrophes, German its hyphenation rules.
 
 ## Markdown conventions
 
-Ordinary Markdown works. Four things are worth knowing about how it lands on
+Ordinary Markdown works. Five things are worth knowing about how it lands on
 paper.
 
 **Tables.** Write the separator row lazily — `|---|---:|` — and let the tool
@@ -371,7 +377,45 @@ Place and date `[ ______________________ ]`
 **Block quotations** become a tinted box with an accent rule down the left, which
 suits a statutory wording or a note that has to stand apart.
 
-Each of these can be switched off under `markdown:` in the configuration.
+Each of those four can be switched off under `markdown:` in the configuration.
+
+**Pictures** are written the ordinary way, and the file is read relative to the
+document that names it:
+
+```markdown
+![Each point is drawn to this arrangement.](assets/plate.svg){width=82%}
+
+![](assets/left.svg){width=48%} ![](assets/right.svg){width=48%}
+```
+
+PNG, JPEG, GIF, SVG and WebP are what Typst can place; anything else is refused
+by name before the compile starts, as is a picture that is not there and a URL,
+which the tool will not go and fetch. The width after a picture is a share of
+the column — which is what puts two of them side by side, as in the second line
+above.
+
+A picture given a caption becomes a **figure**: a block of its own, centred,
+with the caption set underneath in the sans face. A picture given none stays
+inline in the paragraph it was written in. The rest is `images:` in the
+configuration:
+
+| Setting | Does |
+| --- | --- |
+| `width` | Width of a picture that gives none of its own. `auto` keeps its natural size, shrinking it to the column when it is wider; `70%` applies to every picture that does not say otherwise. |
+| `align` | Where a figure sits in the column. |
+| `frame` | A hairline around the picture, for artwork that runs pale at the edges. |
+| `numbered` | `true` prints "Figure 1: …", in the document's language. |
+| `caption.size`, `caption.gap` | The caption's type size, and its distance from the picture. |
+
+One caveat if you draw in SVG: text in an SVG file is set in whatever font the
+machine compiling it has, so a drawing built from live text shifts between
+computers. Convert the lettering to paths, or leave it to the caption, where it
+is typeset with the rest of the document.
+
+<p align="center">
+  <img src="assets/screenshots/03-figures.png" width="880"
+       alt="A page of the quotation carrying pictures: a centred schematic of a rainwater collection point with a small grey caption beneath it, and below that two further drawings — a bar chart and a roof plan — standing side by side at half the column width each." />
+</p>
 
 Paragraphs are reflowed to the column, which is what you want for prose. When a
 block genuinely needs its line breaks — an address, a list of parties — end each
@@ -406,17 +450,17 @@ letterhead.yaml ──► resolved into document.json   (one language, lengths i
       ▼
   body.prep.md
       │
-      │  pandoc --to typst
+      │  pandoc --to typst, pictures copied in beside it
       ▼
   document.typ ──► letterhead.typ ──► typst compile ──► your-document.pdf
 ```
 
 Each document is built in its own directory under `.letterhead-build/`, into
 which everything it needs is copied first — the Typst module, the logo, the
-resolved configuration. That costs a few kilobytes and buys two things: Typst
-compiles with its root set to a directory holding nothing but this document, and
-you can read the directory afterwards to see exactly what was handed to the
-compiler.
+pictures the document names, the resolved configuration. That costs a few
+kilobytes and buys two things: Typst compiles with its root set to a directory
+holding nothing but this document, and you can read the directory afterwards to
+see exactly what was handed to the compiler.
 
 ```bash
 mela-letterhead build --keep-build
@@ -466,6 +510,12 @@ Error: letterhead.yaml: unknown setting 'palete'
 
   Did you mean 'palette'?
 ```
+
+**A picture is refused, or lands somewhere you did not expect.** Its path is
+read relative to the document that names it — not to `letterhead.yaml`, which is
+where the logo's path is read from. `mela-letterhead build --keep-build` leaves
+every picture the document used in `.letterhead-build/<document>/images/`, which
+is exactly what the compiler was given.
 
 **A document ends on a page holding nothing but the bands.** The footer reserves
 its room at the end of the body. Trim the text, or raise `page.margin.bottom`.

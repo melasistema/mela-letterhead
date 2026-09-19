@@ -9,10 +9,10 @@ import shutil
 
 import pytest
 
-from mela_letterhead import builder
+from mela_letterhead import builder, cli
 from mela_letterhead import config as config_module
 from mela_letterhead.builder import ASSETS
-from mela_letterhead.errors import ConfigError
+from mela_letterhead.errors import BuildError, ConfigError
 
 SCAFFOLD = ASSETS / "scaffold"
 
@@ -28,6 +28,8 @@ def project(tmp_path):
     shutil.copy2(SCAFFOLD / "letterhead.yaml", tmp_path / "letterhead.yaml")
     (tmp_path / "assets").mkdir()
     shutil.copy2(SCAFFOLD / "logo.svg", tmp_path / "assets" / "logo.svg")
+    for plate in cli.SCAFFOLD_PLATES:
+        shutil.copy2(SCAFFOLD / plate, tmp_path / "assets" / plate)
     shutil.copy2(SCAFFOLD / "example-letter.md", tmp_path / "example-letter.md")
     return tmp_path
 
@@ -53,6 +55,10 @@ class TestBuild:
         workdir = config.build_dir / "example-letter"
         for name in ("document.json", "document.typ", "body.prep.md", "letterhead.typ", "logo.svg"):
             assert (workdir / name).is_file(), name
+        # The plates the example prints, copied in beside the rest: Typst
+        # compiles with its root here and can read nothing above it.
+        placed = sorted(path.name for path in (workdir / builder.IMAGE_DIR).iterdir())
+        assert placed == sorted(cli.SCAFFOLD_PLATES)
 
     def test_a_document_chooses_its_own_language(self, project):
         (project / "locales").mkdir()
@@ -111,6 +117,77 @@ class TestBuild:
         config = config_module.load(project / "letterhead.yaml")
         results = builder.build_all(config)
         assert results[0].pdf.parent.name == "pdf"
+
+
+class TestStagingImages:
+    """The pictures a document names, copied in and repointed.
+
+    These work on the Typst that Pandoc would have written, so they need
+    neither Pandoc nor Typst to run.
+    """
+
+    def stage(self, project, typst_source, workdir=None):
+        workdir = workdir or (project / "build")
+        workdir.mkdir(exist_ok=True)
+        generated = workdir / "document.typ"
+        generated.write_text(typst_source, encoding="utf-8")
+        staged = builder._stage_images(project, workdir, generated)
+        return staged, generated.read_text(encoding="utf-8")
+
+    def test_a_picture_is_copied_in_and_the_call_repointed(self, project):
+        staged, rewritten = self.stage(
+            project, '#figure(image("assets/plate-condition.svg", alt: "A plate"))\n'
+        )
+        assert staged == ["images/plate-condition.svg"]
+        assert 'image("images/plate-condition.svg"' in rewritten
+        assert (project / "build" / "images" / "plate-condition.svg").is_file()
+
+    def test_the_same_picture_twice_is_copied_once(self, project):
+        staged, rewritten = self.stage(
+            project,
+            '#box(image("assets/logo.svg"))\n#box(image("./assets/logo.svg"))\n',
+        )
+        assert staged == ["images/logo.svg"]
+        assert rewritten.count('image("images/logo.svg")') == 2
+
+    def test_two_pictures_of_the_same_name_are_kept_apart(self, project):
+        (project / "one").mkdir()
+        (project / "two").mkdir()
+        for folder in ("one", "two"):
+            shutil.copy2(SCAFFOLD / "logo.svg", project / folder / "mark.svg")
+        staged, rewritten = self.stage(
+            project, '#box(image("one/mark.svg"))\n#box(image("two/mark.svg"))\n'
+        )
+        assert staged == ["images/mark-2.svg", "images/mark.svg"]
+        assert 'image("images/mark-2.svg")' in rewritten
+
+    def test_a_name_typst_would_stumble_over_is_made_plain(self, project):
+        shutil.copy2(SCAFFOLD / "logo.svg", project / "a mark (final).svg")
+        staged, _ = self.stage(project, '#box(image("a mark (final).svg"))\n')
+        assert staged == ["images/a-mark-final-.svg"]
+
+    def test_a_document_with_no_pictures_is_left_alone(self, project):
+        source = "#box[nothing to place]\n"
+        staged, rewritten = self.stage(project, source)
+        assert staged == []
+        assert rewritten == source
+
+    def test_a_missing_picture_says_where_it_was_looked_for(self, project):
+        with pytest.raises(BuildError) as caught:
+            self.stage(project, '#box(image("assets/nowhere.png"))\n')
+        assert "nowhere.png" in caught.value.message
+        assert str(project) in caught.value.hint
+
+    def test_a_remote_picture_is_refused(self, project):
+        # Typst places files and fetches nothing, and a build that reached out
+        # to the network would be a different tool.
+        with pytest.raises(BuildError, match="fetches nothing"):
+            self.stage(project, '#box(image("https://example.com/plate.png"))\n')
+
+    def test_a_format_typst_cannot_place_is_refused(self, project):
+        (project / "plate.pdf").write_bytes(b"%PDF-1.4")
+        with pytest.raises(BuildError, match="cannot place"):
+            self.stage(project, '#box(image("plate.pdf"))\n')
 
 
 class TestStaging:

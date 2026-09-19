@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 320" width="440" height="320" role="img" aria-label="Plan of the four roof catchments and their collection points">
+  <!-- Placeholder artwork. See plate-collection-point.svg for why it carries
+       no live text. -->
+  <rect width="440" height="320" rx="6" fill="#f5f5f7"/>
+
+  <!-- the four catchments -->
+  <g fill="#ffffff" stroke="#6f6b74" stroke-width="1.8">
+    <rect x="48" y="52" width="148" height="104" rx="4"/>
+    <rect x="216" y="52" width="176" height="80" rx="4"/>
+    <rect x="48" y="176" width="112" height="92" rx="4"/>
+    <rect x="180" y="152" width="212" height="116" rx="4"/>
+  </g>
+
+  <!-- fall of each surface -->
+  <g stroke="#4a3f8a" stroke-width="1.4" stroke-dasharray="5 4" opacity=".6">
+    <path d="M60 64 L184 144"/>
+    <path d="M228 64 L380 120"/>
+    <path d="M60 188 L148 256"/>
+    <path d="M192 164 L380 256"/>
+  </g>
+
+  <!-- the manifold the four share -->
+  <path d="M184 144 H380 V256 H148" fill="none" stroke="#4a3f8a" stroke-width="2.6"
+        stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- collection points -->
+  <g fill="#4a3f8a" stroke="#ffffff" stroke-width="2.5">
+    <circle cx="184" cy="144" r="9"/>
+    <circle cx="380" cy="120" r="9"/>
+    <circle cx="148" cy="256" r="9"/>
+    <circle cx="380" cy="256" r="9"/>
+  </g>
+
+  <!-- north -->
+  <g transform="translate(404 40)">
+    <path d="M0 -18 L8 10 L0 3 L-8 10 Z" fill="#1c1c20" fill-opacity=".75"/>
+  </g>
+
+  <!-- scale bar -->
+  <g>
+    <rect x="48" y="288" width="36" height="7" fill="#1c1c20" fill-opacity=".75"/>
+    <rect x="84" y="288" width="36" height="7" fill="#ffffff" stroke="#1c1c20"
+          stroke-opacity=".75" stroke-width="1.2"/>
+    <rect x="120" y="288" width="36" height="7" fill="#1c1c20" fill-opacity=".75"/>
+  </g>
+</svg>

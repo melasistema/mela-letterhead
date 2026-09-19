@@ -6,6 +6,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Pictures in the body. `![caption](plate.svg)` prints PNG, JPEG, GIF, SVG and
+  WebP; the file is read relative to the document that names it, copied into
+  the document's build directory and the reference repointed at it, since Typst
+  compiles with its root set there and can read nothing above it.
+- An `images:` section: the default width of a picture that gives none of its
+  own, the alignment of a figure, an optional hairline frame, figure numbering,
+  and the size and gap of a caption. A picture with a caption is set as a
+  centred figure with the caption beneath it; one without stays inline.
+- `units.to_ratio`, for a width written as a share of the column — `70%` or the
+  fraction `0.7`. A bare `70` is refused rather than printed seventy times too
+  wide.
+- Three drawings in the scaffold, and a section of the example document that
+  prints them: one full-width figure with a caption, and two standing side by
+  side at `{width=48%}`.
+
+### Changed
+
+- The example document runs to four pages, and the README screenshots were
+  retaken from it.
+
 ## [0.1.0] — 2026-09-16
 
 First release.

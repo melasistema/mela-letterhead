@@ -14,6 +14,12 @@ Two families of measurement are accepted, and each field belongs to exactly one:
     ``0.82``. Kept as a float, multiplied by ``1em`` in Typst. Used for
     leading and paragraph spacing, which must scale with whatever text they
     are applied to.
+
+``ratio``
+    A share of the space available: ``60%``, or the bare number ``0.6``. Kept
+    as a fraction, multiplied by ``100%`` in Typst. Used for the width of an
+    image, which is measured against the column it sits in rather than
+    against the paper.
 """
 
 from __future__ import annotations
@@ -42,6 +48,10 @@ _RELATIVE_RE = re.compile(
     r"^\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*(em)?\s*$",
     re.IGNORECASE,
 )
+_RATIO_RE = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*(%)?\s*$")
+
+#: A share this far above the whole is a mistyped percentage, not a design.
+_RATIO_CEILING = 5.0
 
 _HEX_COLOUR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
@@ -101,6 +111,41 @@ def to_em(value: Union[str, Number], field: str) -> float:
             "scale with the text it applies to.",
         )
     return float(match.group(1))
+
+
+def to_ratio(value: Union[str, Number], field: str) -> float:
+    """Return ``value`` as a fraction of the space available.
+
+    ``"60%"`` and ``0.6`` are the same thing. A bare number is a fraction and
+    never a percentage, so ``60`` is sixty times the column — refused here,
+    where the setting can still be named, rather than printed as an image
+    running off the page.
+    """
+    if isinstance(value, bool):
+        raise ConfigError(f"{field}: expected a share such as '60%', got a boolean")
+    if isinstance(value, (int, float)):
+        ratio = float(value)
+    elif isinstance(value, str):
+        match = _RATIO_RE.match(value)
+        if match is None:
+            raise ConfigError(
+                f"{field}: {value!r} is not a share of the width",
+                hint="Use a percentage such as '60%', or the fraction 0.6.",
+            )
+        ratio = float(match.group(1))
+        if match.group(2):
+            ratio /= 100.0
+    else:
+        raise ConfigError(f"{field}: expected a share such as '60%', got {value!r}")
+
+    if ratio <= 0 or ratio > _RATIO_CEILING:
+        raise ConfigError(
+            f"{field}: {value!r} is not a usable share of the width",
+            hint="Use a percentage such as '60%', or the fraction 0.6. A bare "
+            "number is read as a fraction, so '60' would be sixty times the "
+            "width of the column.",
+        )
+    return ratio
 
 
 def to_colour(value: object, field: str) -> str:

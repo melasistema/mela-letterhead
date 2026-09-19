@@ -378,6 +378,40 @@
   show table: it => align(left, it)
   show figure: set block(breakable: true, above: 1.2em, below: 1.3em)
 
+  // ─── Images ──────────────────────────────────────────────────────────────
+  // Pandoc turns an image with alt text, alone in its paragraph, into a
+  // figure whose caption is that alt text; an image without alt text stays
+  // inline in the paragraph it was written in, and follows the text. A width
+  // written in the Markdown — `![](plate.png){width=70%}` — overrides the
+  // default set here, because a `set` rule yields to an explicit argument.
+  //
+  // These are applied to the body alone rather than to the whole document:
+  // the mark in the bands is an image too, and it is not a picture in the
+  // text — it must take neither the body's default width nor its frame.
+  let img = cfg.images
+  let pictures(content) = {
+    set image(width: if img.width == none { auto } else { float(img.width) * 100% })
+
+    show image: it => if img.frame { box(stroke: 0.5pt + hairline, it) } else { it }
+
+    show figure.where(kind: image): set figure(
+      gap: len(img.caption.gap),
+      numbering: if img.numbered { "1" } else { none },
+    )
+    show figure.where(kind: image): it => {
+      // Scoped to the picture: a table's caption is not a picture's caption.
+      show figure.caption: caption => text(
+        font: cfg.fonts.sans,
+        size: len(img.caption.size),
+        fill: rgb(pal.muted),
+        caption,
+      )
+      align(alignment-of(img.align), it)
+    }
+
+    content
+  }
+
   // ─── Block quotations ────────────────────────────────────────────────────
   show quote.where(block: true): it => block(
     width: 100%,
@@ -432,7 +466,7 @@
   // the whole document, so the first page buys its extra height here.
   v(len(cfg.page.first_page_extra))
 
-  body
+  pictures(body)
 
   // Room for the footer band on the last page, for the same reason.
   block(height: len(cfg.page.footer_reserve), width: 100%)

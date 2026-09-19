@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 320" width="440" height="320" role="img" aria-label="Condition grading of four collection points">
+  <!-- Placeholder artwork. See plate-collection-point.svg for why it carries
+       no live text. -->
+  <rect width="440" height="320" rx="6" fill="#f5f5f7"/>
+
+  <!-- baseline and the rules it is read against -->
+  <g stroke="#dcd9e2" stroke-width="1.4">
+    <line x1="52" y1="72" x2="404" y2="72"/>
+    <line x1="52" y1="132" x2="404" y2="132"/>
+    <line x1="52" y1="192" x2="404" y2="192"/>
+  </g>
+  <line x1="52" y1="252" x2="404" y2="252" stroke="#1c1c20" stroke-width="1.8" stroke-opacity=".7"/>
+  <line x1="52" y1="48" x2="52" y2="252" stroke="#1c1c20" stroke-width="1.8" stroke-opacity=".7"/>
+
+  <!-- four points, graded -->
+  <g>
+    <rect x="78" y="96" width="52" height="156" rx="3" fill="#4a3f8a" fill-opacity=".85"/>
+    <rect x="160" y="140" width="52" height="112" rx="3" fill="#4a3f8a" fill-opacity=".55"/>
+    <rect x="242" y="118" width="52" height="134" rx="3" fill="#4a3f8a" fill-opacity=".7"/>
+    <rect x="324" y="204" width="52" height="48" rx="3" fill="#a4262c" fill-opacity=".8"/>
+  </g>
+
+  <!-- the threshold below which a point is beyond economic repair -->
+  <line x1="52" y1="216" x2="404" y2="216" stroke="#a4262c" stroke-width="1.6"
+        stroke-dasharray="7 5"/>
+
+  <!-- legend: three grades and the threshold -->
+  <g>
+    <rect x="78" y="278" width="18" height="18" rx="3" fill="#4a3f8a" fill-opacity=".85"/>
+    <rect x="104" y="284" width="64" height="6" rx="3" fill="#6f6b74" fill-opacity=".45"/>
+    <rect x="196" y="278" width="18" height="18" rx="3" fill="#4a3f8a" fill-opacity=".55"/>
+    <rect x="222" y="284" width="52" height="6" rx="3" fill="#6f6b74" fill-opacity=".45"/>
+    <rect x="302" y="278" width="18" height="18" rx="3" fill="#a4262c" fill-opacity=".8"/>
+    <rect x="328" y="284" width="48" height="6" rx="3" fill="#6f6b74" fill-opacity=".45"/>
+  </g>
+</svg>

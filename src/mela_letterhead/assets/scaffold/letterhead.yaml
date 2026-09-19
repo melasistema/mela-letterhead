@@ -84,6 +84,31 @@ typography:
     h3: 10.6pt
     h4: 10pt
 
+# ── Pictures in the body ────────────────────────────────────────────────────
+# Write one as `![caption](assets/plate.svg)`. The file is read relative to the
+# document that names it — PNG, JPEG, GIF, SVG and WebP all work — and a width
+# can be given after it: `![](plate.png){width=48%}`, which is a share of the
+# column and what puts two pictures side by side.
+#
+# A picture with a caption becomes a figure: a block of its own, aligned by
+# `align` below, with the caption underneath. A picture without one stays in
+# the line of text it was written in.
+images:
+  # Width of a picture that gives none of its own. `auto` prints it at its
+  # natural size, shrinking it to the column when it is wider; a share such as
+  # 70% applies to every picture that does not say otherwise.
+  width: auto
+  align: center
+  # A hairline around the picture. Worth turning on for artwork that runs pale
+  # at the edges, which would otherwise bleed into the paper.
+  frame: false
+  # Number the figures — "Figure 1: ...". The word is Typst's own and follows
+  # the document's language.
+  numbered: false
+  caption:
+    size: 9.2pt
+    gap: 6pt # between the picture and its caption
+
 # ── The band across the top of page one ─────────────────────────────────────
 header:
   show: true

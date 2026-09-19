@@ -111,6 +111,29 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # Inline code, relative to the surrounding text.
         "code_size": 0.82,
     },
+    # Pictures in the body: photographs, drawings, plates of previous work.
+    # Their files are read relative to the document that names them.
+    "images": {
+        # Width of an image that gives none of its own, as a share of the
+        # column: "70%", or the fraction 0.7. `auto` prints it at its natural
+        # size, shrunk to the column when it is wider — which is the only
+        # setting that leaves a small mark small.
+        "width": "auto",
+        # Where a figure sits in the column. An image without a caption stays
+        # inline in the text it was written in, and follows the paragraph.
+        "align": "center",
+        # A hairline around the image. Worth turning on for artwork that runs
+        # pale at the edges, which would otherwise bleed into the paper.
+        "frame": False,
+        # Number the figures ("Figure 1: ..."). The word is Typst's own and
+        # follows the document's language.
+        "numbered": False,
+        "caption": {
+            "size": "9.2pt",
+            # Between the image and its caption.
+            "gap": "6pt",
+        },
+    },
     "header": {
         "show": True,
         "height": "43mm",
@@ -372,6 +395,7 @@ def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
         },
         "fonts": resolve_fonts(data["fonts"]),
         "typography": _resolve_typography(data["typography"]),
+        "images": _resolve_images(data["images"]),
         "header": header,
         "running": running,
         "footer": footer,
@@ -429,6 +453,28 @@ def _resolve_typography(typography: Dict[str, Any]) -> Dict[str, Any]:
         "table_size": units.to_points(typography["table_size"], "typography.table_size"),
         "quote_size": units.to_points(typography["quote_size"], "typography.quote_size"),
         "code_size": units.to_em(typography["code_size"], "typography.code_size"),
+    }
+
+
+def _resolve_images(images: Dict[str, Any]) -> Dict[str, Any]:
+    width = images["width"]
+    if isinstance(width, str) and width.strip().lower() in ("auto", "natural"):
+        # None, rather than 1.0: an image with no width of its own is left at
+        # its natural size, which is not the same as one filling the column.
+        width = None
+    elif width is not None:
+        width = units.to_ratio(width, "images.width")
+
+    caption = images["caption"]
+    return {
+        "width": width,
+        "align": _alignment(images["align"], "images.align"),
+        "frame": bool(images["frame"]),
+        "numbered": bool(images["numbered"]),
+        "caption": {
+            "size": units.to_points(caption["size"], "images.caption.size"),
+            "gap": units.to_points(caption["gap"], "images.caption.gap"),
+        },
     }
 
 

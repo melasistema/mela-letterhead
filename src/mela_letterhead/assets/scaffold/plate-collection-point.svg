@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 380" width="640" height="380" role="img" aria-label="Schematic of a rainwater collection point">
+  <!--
+    A placeholder plate for a survey that never happened, drawn to show what a
+    picture looks like on this paper. Replace it, or delete the section of
+    example-letter.md that prints it.
+
+    Two things worth copying if you draw your own:
+
+      · There is no text in this file. Text in an SVG is drawn with whatever
+        font the machine has, so a drawing built from live text shifts between
+        computers. Convert lettering to paths, or write it in the caption,
+        where it is typeset with the rest of the document.
+      · The colours are the ones in letterhead.yaml. A drawing that shares the
+        palette of the paper it sits on looks like it belongs there.
+  -->
+  <rect width="640" height="380" rx="6" fill="#f5f5f7"/>
+
+  <!-- catchment surface, falling to the right -->
+  <polygon points="58,58 330,118 330,142 58,82" fill="#4a3f8a" fill-opacity=".18"
+           stroke="#4a3f8a" stroke-width="2" stroke-linejoin="round"/>
+  <g fill="none" stroke="#4a3f8a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity=".75">
+    <path d="M120 70 l16 4 -14 7"/>
+    <path d="M190 85 l16 4 -14 7"/>
+    <path d="M260 100 l16 4 -14 7"/>
+  </g>
+
+  <!-- downpipe -->
+  <rect x="330" y="118" width="20" height="112" rx="5" fill="#6f6b74" fill-opacity=".22"
+        stroke="#6f6b74" stroke-width="2"/>
+
+  <!-- first-flush diverter, branching to its own chamber -->
+  <path d="M340 196 h-58 v42" fill="none" stroke="#6f6b74" stroke-width="2"/>
+  <rect x="258" y="238" width="48" height="56" rx="5" fill="#ffffff"
+        stroke="#6f6b74" stroke-width="2"/>
+  <rect x="264" y="268" width="36" height="20" rx="3" fill="#4a3f8a" fill-opacity=".28"/>
+
+  <!-- feed into the tank -->
+  <path d="M340 230 v18 h58" fill="none" stroke="#4a3f8a" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- storage tank, part full -->
+  <rect x="398" y="150" width="160" height="170" rx="10" fill="#ffffff"
+        stroke="#4a3f8a" stroke-width="2.4"/>
+  <path d="M398 226 q20 -10 40 0 t40 0 t40 0 t40 0 v84 a10 10 0 0 1 -10 10 h-140 a10 10 0 0 1 -10 -10 z"
+        fill="#4a3f8a" fill-opacity=".22"/>
+  <line x1="398" y1="286" x2="558" y2="286" stroke="#4a3f8a" stroke-width="1.2"
+        stroke-opacity=".45" stroke-dasharray="6 5"/>
+
+  <!-- the fall measured between surface and inlet -->
+  <g stroke="#6f6b74" stroke-width="1.6" fill="none">
+    <path d="M594 150 v170"/>
+    <path d="M588 156 l6 -6 6 6"/>
+    <path d="M588 314 l6 6 6 -6"/>
+    <path d="M566 150 h36"/>
+    <path d="M566 320 h36"/>
+  </g>
+
+  <!-- ground -->
+  <line x1="40" y1="330" x2="600" y2="330" stroke="#1c1c20" stroke-width="2" stroke-opacity=".7"/>
+  <g stroke="#6f6b74" stroke-width="1.4" opacity=".55">
+    <path d="M56 330 l-12 14"/><path d="M96 330 l-12 14"/><path d="M136 330 l-12 14"/>
+    <path d="M176 330 l-12 14"/><path d="M216 330 l-12 14"/><path d="M256 330 l-12 14"/>
+    <path d="M296 330 l-12 14"/><path d="M336 330 l-12 14"/><path d="M376 330 l-12 14"/>
+    <path d="M416 330 l-12 14"/><path d="M456 330 l-12 14"/><path d="M496 330 l-12 14"/>
+    <path d="M536 330 l-12 14"/><path d="M576 330 l-12 14"/>
+  </g>
+</svg>
