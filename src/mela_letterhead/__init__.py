@@ -6,9 +6,9 @@ paper — header band, running header, footer with your legal details — in
 whatever language each document declares.
 """
 
-# The comment is not decoration: release-please rewrites the line it marks, and
-# this is the only place the version is kept besides pyproject.toml.
-__version__ = "0.1.0"  # x-release-please-version
+# Kept in step with pyproject.toml by hand; the release workflow refuses a tag
+# that disagrees with either of them.
+__version__ = "0.1.0"
 __author__ = "Luca Visciola (Melasistema)"
 __license__ = "MIT"
 

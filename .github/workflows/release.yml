@@ -1,30 +1,111 @@
 name: Release
 
-# Versioning runs off the commit messages. Every push to master is read by
-# release-please, which works out the next version from the conventional
-# commits since the last tag and keeps a pull request open with the bump and a
-# draft changelog section in it. Nothing is released until that request is
-# merged, which is the point: the generated section is a list of commit
-# subjects, and CHANGELOG.md is written in prose, so the request is where the
-# one is turned into the other by hand.
+# Releasing is a tag. You bump the version, write the CHANGELOG section in your
+# own words, commit, and push the tag; this turns that tag into a GitHub
+# release with the section you wrote as its notes.
 #
-# Merging that request bumps the version, tags it and cuts a GitHub release.
-# It publishes nothing: the package is not on PyPI yet, and a release that
-# stops at the tag is the whole of what is wanted for now.
+#     # bump pyproject.toml and src/mela_letterhead/__init__.py,
+#     # and head the CHANGELOG section with the new version
+#     git commit -am "chore(release): 0.2.0"
+#     git tag -a v0.2.0 -m "v0.2.0"
+#     git push && git push origin v0.2.0
+#
+# Nothing here writes to the repository or invents a version number: the
+# changelog stays prose, written once, and read back rather than generated.
+# What the workflow does instead is refuse a tag that disagrees with the
+# package — the one mistake this arrangement invites, since the version now
+# lives by hand in three places.
+#
+# To see the notes a tag would carry before pushing it:
+#
+#     awk -v want="## [0.2.0]" 'index($0,want)==1{f=1;next} \
+#         f&&index($0,"## [")==1{exit} f&&/^\[[^]]+\]: /{exit} f' CHANGELOG.md
 on:
   push:
-    branches: [master]
+    tags: ["v*"]
 
 jobs:
-  release-please:
-    name: Propose the release
+  release:
+    name: Cut the release
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: write
 
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: actions/checkout@v7
+
+      # v0.2.0 has to mean 0.2.0 everywhere, or the PDF a user builds reports a
+      # version that was never released. Checked before anything is published,
+      # because a GitHub release can be deleted but a tag that has been pulled
+      # is already in somebody's clone.
+      - name: Check the tag against the package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          pyproject=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          init=$(grep -m1 '^__version__ = ' src/mela_letterhead/__init__.py | cut -d'"' -f2)
+
+          echo "tag             $version"
+          echo "pyproject.toml  $pyproject"
+          echo "__init__.py     $init"
+
+          if [ "$version" != "$pyproject" ] || [ "$version" != "$init" ]; then
+            echo "::error::the tag and the package disagree about the version" >&2
+            exit 1
+          fi
+
+      # The same toolchain CI runs on. A tag usually points at a commit master
+      # already tested, but "usually" is not a thing to publish on.
+      - uses: actions/setup-python@v7
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Pandoc
+        run: sudo apt-get update && sudo apt-get install --yes pandoc
+
+      - name: Install Typst
+        uses: typst-community/setup-typst@v5
+
+      - name: Install the package
+        run: pip install -e ".[dev]"
+
+      - name: Run the tests
+        run: pytest -q
+
+      # The section for this version, lifted out of CHANGELOG.md: everything
+      # under `## [0.2.0]` up to the next release heading. It stops at the link
+      # definitions at the foot of the file too, which would otherwise be
+      # swallowed by whichever section happens to be last.
+      - name: Read the notes out of the changelog
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+
+          awk -v want="## [$version]" '
+            index($0, want) == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found && /^\[[^]]+\]: / { exit }
+
+            # Blank lines are held rather than printed, and flushed before the
+            # next line that has something on it. Blank lines between the
+            # sections survive; the run under the heading is never held in the
+            # first place, and the run at the end is never flushed.
+            found && NF == 0 { if (started) held = held "\n"; next }
+            found { printf "%s%s\n", held, $0; held = ""; started = 1 }
+          ' CHANGELOG.md > notes.md
+
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no '## [$version]' section to release" >&2
+            exit 1
+          fi
+
+          echo "--- notes.md ---"
+          cat notes.md
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --verify-tag

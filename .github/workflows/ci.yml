@@ -6,10 +6,10 @@ on:
   pull_request:
 
 jobs:
-  # The version and the changelog are derived from the commit subjects, so a
-  # subject release-please cannot read is a change that goes out unrecorded.
-  # This runs the same script the commit-msg hook does, for the clones that
-  # never enabled it.
+  # `git log v0.1.0..HEAD --oneline` is what a release is written from, so a
+  # subject that does not say what kind of change it is costs somebody a dig
+  # through the diff later. This runs the same script the commit-msg hook does,
+  # for the clones that never enabled it.
   commit-messages:
     name: Commit messages
     if: github.event_name == 'pull_request'

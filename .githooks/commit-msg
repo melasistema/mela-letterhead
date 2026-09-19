@@ -1,11 +1,13 @@
 #!/bin/sh
 #
-# Refuse a commit subject that release-please cannot read.
+# Refuse a commit subject that is not a conventional commit.
 #
-# The next version and the changelog are both derived from the subject lines on
-# master. A type release-please does not know is not an error there — the
-# commit is simply left out of the release, silently. This hook is where that
-# becomes visible, while the message can still be rewritten.
+# Nothing reads these automatically — the version is bumped by hand and the
+# changelog is written in prose. What the convention buys is the other
+# direction: at release time `git log v0.1.0..HEAD --oneline` is the list of
+# what has to be accounted for, sorted by type into the sections it is going to
+# be written under. A subject that does not say what kind of change it is makes
+# that list something to reconstruct rather than read.
 #
 # Install it once per clone:
 #
@@ -33,14 +35,14 @@ if ! printf '%s' "$subject" | grep -Eq "$pattern"; then
     cat >&2 <<'EOF'
 Write it as `type(scope): subject`, where type is one of:
 
-    feat        a new capability          → minor version, "Added"
-    fix         a defect repaired         → patch version, "Fixed"
-    perf        the same result, faster   → patch version, "Changed"
+    feat        a new capability          → a minor bump, under "Added"
+    fix         a defect repaired         → a patch bump, under "Fixed"
+    perf        the same result, faster   → a patch bump, under "Changed"
     refactor    no change in behaviour    → "Changed"
     style       whitespace, formatting    → "Changed"
     docs        documentation only        → "Changed"
     revert      an earlier commit undone  → "Removed"
-    build, chore, ci, test                → no release, kept out of the changelog
+    build, chore, ci, test                → usually nothing the changelog records
 
 The scope is optional and names the part of the tool the commit touches:
 config, i18n, builder, page, footer, images, brand, cli, template.
