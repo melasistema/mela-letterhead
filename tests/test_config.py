@@ -51,6 +51,39 @@ class TestLoading:
         config = make_config(tmp_path, "documents:\n  exclude: ['NOTES.md']\n")
         assert config.data["documents"]["exclude"] == ["NOTES.md"]
 
+    def test_a_section_key_shaped_like_a_language_is_merged_not_replaced(self, tmp_path):
+        # `top` is three letters. Read as a language tag it made `page.margin`
+        # the string "30mm", and resolving one raised TypeError out of Python
+        # rather than a ConfigError naming the setting.
+        config = make_config(tmp_path, "page:\n  margin:\n    top: 30mm\n")
+        margin = config.data["page"]["margin"]
+        assert margin["top"] == "30mm"
+        assert margin["x"] == config_module.DEFAULT_CONFIG["page"]["margin"]["x"]
+        assert margin["bottom"] == config_module.DEFAULT_CONFIG["page"]["margin"]["bottom"]
+
+    @pytest.mark.parametrize(
+        "written, section, key, expected",
+        [
+            ("page:\n  margin:\n    top: 30mm\n", ("page", "margin"), "top", "30mm"),
+            ('header:\n  ink: "#0a0a0a"\n', ("header",), "ink", "#0a0a0a"),
+            (
+                "page:\n  background:\n    fit: contain\n",
+                ("page", "background"),
+                "fit",
+                "contain",
+            ),
+            ("brand:\n  tagline:\n    gap: 4mm\n", ("brand", "tagline"), "gap", "4mm"),
+        ],
+    )
+    def test_a_lone_short_key_never_swallows_its_section(
+        self, tmp_path, written, section, key, expected
+    ):
+        data = make_config(tmp_path, written).data
+        for name in section:
+            data = data[name]
+            assert isinstance(data, dict), "the section was read as a translation"
+        assert data[key] == expected
+
     def test_an_unknown_key_is_named_and_a_fix_suggested(self, tmp_path):
         with pytest.raises(ConfigError) as caught:
             make_config(tmp_path, "palete:\n  band: '#fff'\n")

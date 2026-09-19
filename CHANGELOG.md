@@ -6,6 +6,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A setting whose name has the shape of a language tag no longer swallows the
+  section holding it. `page.margin: { top: 30mm }` was read as a translation
+  into a language spelled `top`, which replaced the whole margin with the
+  string `30mm` and then failed with a `TypeError` out of Python rather than an
+  error naming the setting. Language maps are now recognised against the
+  schema — a section owns its own key names — so `top`, `ink`, `fit` and every
+  short key added from here on are keys wherever the schema says they are.
+  `brand.tagline: { en: ..., de: ... }` still replaces the section, because it
+  borrows none of that section's names.
+- `mela-letterhead check` now resolves the letterhead and every document it
+  discovers, exactly as `build` would. It read the configuration and stopped
+  there, so a colour that was not one, a weight outside 100–900 or a malformed
+  footer row passed `check` with "Everything checks out." and failed on the
+  very next command. A value written per language is resolved in each
+  document's own language, and reported against the document that meets it.
+
 ## [0.2.0] — 2026-09-19
 
 ### Added

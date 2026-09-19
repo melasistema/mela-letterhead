@@ -186,6 +186,22 @@ def command_check(args: argparse.Namespace) -> int:
     languages = i18n.available_locales(config.locales_dir)
     print(f"     locale packs   {', '.join(languages)}")
 
+    # Reading cleanly is only half of it. Every colour, weight, length, footer
+    # row and header field is settled in `resolve`, which `check` did not call
+    # until now — so a letterhead could pass here and fail on the next command.
+    # Resolved against a document with nothing in it, which is what leaves only
+    # the letterhead's own mistakes.
+    settings_resolve = True
+    probe = Document(config.path or Path(config_module.CONFIG_FILENAME), {}, "")
+    try:
+        config_module.resolve(config, probe, config.default_language)
+    except LetterheadError as error:
+        settings_resolve = False
+        problems += 1
+        _problem(error.message, error.hint)
+    else:
+        print(f"  {_green('✓')}  every setting resolves")
+
     print()
     print(_bold("Fonts"))
     if toolchain.find("typst").available:
@@ -237,9 +253,22 @@ def command_check(args: argparse.Namespace) -> int:
             document = Document.load(path, documents["date_format"])
         except LetterheadError as error:
             problems += 1
-            print(f"  {_red('✗')}  {_relative(path)}: {error.message}")
+            _problem(f"{_relative(path)}: {error.message}", error.hint)
             continue
+
         language = document.language or config.default_language
+        # In the document's own language, which is the one it will be built in:
+        # a label or a colour written per language is only wrong in some of
+        # them. Skipped when the letterhead itself did not resolve, so that one
+        # bad colour is reported once rather than once per document.
+        if settings_resolve:
+            try:
+                config_module.resolve(config, document, language)
+            except LetterheadError as error:
+                problems += 1
+                _problem(f"{_relative(path)}: {error.message}", error.hint)
+                continue
+
         print(
             f"  {_green('✓')}  {_relative(path)}  "
             f"{_dim(f'[{language}] → {document.output_name}.pdf')}"
@@ -292,6 +321,18 @@ def _human_size(path: Path) -> str:
     if size < 1024 * 1024:
         return f"{size / 1024:.0f} kB"
     return f"{size / (1024 * 1024):.1f} MB"
+
+
+def _problem(message: str, hint: str = "") -> None:
+    """Report a failure inside a `check` section, hint and all.
+
+    The hint is where the useful half usually lives — which colours are
+    colours, how a footer row is written — so it is printed here rather than
+    kept for the one error that stops the command.
+    """
+    print(f"  {_red('✗')}  {message}")
+    for line in hint.splitlines():
+        print(f"     {_dim(line)}")
 
 
 def _report(error: LetterheadError) -> None:

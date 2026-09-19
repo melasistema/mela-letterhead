@@ -451,7 +451,7 @@ def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
     """
     chain = i18n.fallback_chain(language, config.default_language)
     strings = i18n.load_locale(chain, config.locales_dir)
-    data = i18n.localise(copy.deepcopy(config.data), chain)
+    data = i18n.localise(copy.deepcopy(config.data), chain, DEFAULT_CONFIG)
 
     width, height = units.page_size(data["page"]["size"], "page.size")
     margin = data["page"]["margin"]
@@ -1002,13 +1002,19 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
 
     Lists replace rather than extend: a user who lists three footer columns
     means three, not three appended to the defaults.
+
+    ``base`` starts as a copy of :data:`DEFAULT_CONFIG`, so at every step it is
+    also the schema — which is what tells a section written in one language
+    from a section with one setting in it. Merging ``{ top: 30mm }`` into
+    ``page.margin`` has to keep ``x`` and ``bottom``; replacing it with a
+    translation has to not.
     """
     for key, value in override.items():
         if (
             key in base
             and isinstance(base[key], dict)
             and isinstance(value, dict)
-            and not i18n.is_language_map(value)
+            and not i18n.is_translation(value, base[key])
         ):
             _deep_merge(base[key], value)
         else:
@@ -1041,7 +1047,7 @@ def _reject_unknown_keys(
             and isinstance(reference[key], dict)
             and reference[key]
             and key != "palette"
-            and not i18n.is_language_map(value)
+            and not i18n.is_translation(value, reference[key])
         ):
             _reject_unknown_keys(value, reference[key], path, prefix=f"{where}.")
 

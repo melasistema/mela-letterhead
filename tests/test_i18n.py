@@ -30,10 +30,38 @@ class TestLanguageMapDetection:
     def test_not_recognised(self, value):
         assert not i18n.is_language_map(value)
 
-    def test_reserved_keys_are_not_languages(self):
-        # `on: last` was a footer setting before the key was renamed; a mapping
-        # made only of such words must never be read as a translation.
-        assert not i18n.is_language_map({"on": "last"})
+    def test_record_keys_are_not_languages(self):
+        # Inside a list the schema describes nothing, so shape is all there is
+        # to go on, and a header field written with only a `key` in it must
+        # still be a header field.
+        assert not i18n.is_language_map({"key": "reference"})
+        assert not i18n.is_language_map({"key": "date", "label": "Date"})
+
+
+class TestIsTranslation:
+    """Where a mapping was written decides what it is; its shape cannot."""
+
+    MARGIN = {"x": "22mm", "top": "27.5mm", "bottom": "39.5mm"}
+
+    def test_a_section_key_that_looks_like_a_tag_stays_a_key(self):
+        # The defect this replaced: `top` is three letters, so a margin with
+        # only a top set was read as Tok Pisin and swallowed the section.
+        assert not i18n.is_translation({"top": "30mm"}, self.MARGIN)
+
+    def test_a_section_borrowing_no_names_is_a_translation(self):
+        tagline = {"text": None, "size": 0.055, "gap": "2.4mm"}
+        assert i18n.is_translation({"en": "Surveying", "it": "Rilievi"}, tagline)
+
+    def test_a_scalar_position_takes_a_translation(self):
+        # `brand.logo` is a path in the schema, so a map there is per-market.
+        assert i18n.is_translation({"en": "logo-en.svg", "it": "logo-it.svg"}, None)
+
+    def test_an_unknown_position_falls_back_to_shape(self):
+        assert i18n.is_translation({"en": "Date:", "de": "Datum:"})
+        assert not i18n.is_translation({"key": "reference"})
+
+    def test_a_mapping_that_is_no_language_map_never_is_one(self):
+        assert not i18n.is_translation({"width": "67mm"}, None)
 
 
 class TestFallbackChain:
@@ -83,6 +111,24 @@ class TestLocalise:
     def test_leaves_option_mappings_alone(self):
         source = {"logo": {"width": "67mm", "y": "11.8mm"}}
         assert i18n.localise(source, ["it", "en"]) == source
+
+    def test_the_schema_protects_a_section_from_its_own_key_names(self):
+        schema = {"page": {"margin": {"x": "22mm", "top": "27.5mm"}}}
+        source = {"page": {"margin": {"top": "30mm"}}}
+        assert i18n.localise(source, ["it", "en"], schema) == source
+
+    def test_a_section_written_per_language_is_still_localised(self):
+        schema = {"tagline": {"text": None, "gap": "2.4mm"}}
+        source = {"tagline": {"en": {"text": "Surveying"}, "it": {"text": "Rilievi"}}}
+        result = i18n.localise(source, ["it", "en"], schema)
+        assert result["tagline"] == {"text": "Rilievi"}
+
+    def test_a_record_inside_a_list_keeps_its_own_keys(self):
+        # The schema says nothing about what a user puts in `items`, so the
+        # record vocabulary is what keeps `key` from being read as a language.
+        schema = {"items": []}
+        source = {"items": [{"key": "reference"}]}
+        assert i18n.localise(source, ["it", "en"], schema) == source
 
 
 class TestSplitTag:
