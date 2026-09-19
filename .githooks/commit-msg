@@ -1,0 +1,66 @@
+#!/bin/sh
+#
+# Refuse a commit subject that release-please cannot read.
+#
+# The next version and the changelog are both derived from the subject lines on
+# master. A type release-please does not know is not an error there — the
+# commit is simply left out of the release, silently. This hook is where that
+# becomes visible, while the message can still be rewritten.
+#
+# Install it once per clone:
+#
+#     git config core.hooksPath .githooks
+#
+# CI runs this same script over the commits in a pull request, so the two
+# cannot drift apart.
+
+set -e
+
+subject=$(head -n 1 "$1")
+
+# Messages git writes itself, and the ones meant to be squashed away later.
+case "$subject" in
+    "Merge "*|"Revert "*|"fixup!"*|"squash!"*|"amend!"*)
+        exit 0
+        ;;
+esac
+
+# type(optional scope)optional !: subject
+pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: .+'
+
+if ! printf '%s' "$subject" | grep -Eq "$pattern"; then
+    printf '\nThis subject is not a conventional commit:\n\n    %s\n\n' "$subject" >&2
+    cat >&2 <<'EOF'
+Write it as `type(scope): subject`, where type is one of:
+
+    feat        a new capability          → minor version, "Added"
+    fix         a defect repaired         → patch version, "Fixed"
+    perf        the same result, faster   → patch version, "Changed"
+    refactor    no change in behaviour    → "Changed"
+    style       whitespace, formatting    → "Changed"
+    docs        documentation only        → "Changed"
+    revert      an earlier commit undone  → "Removed"
+    build, chore, ci, test                → no release, kept out of the changelog
+
+The scope is optional and names the part of the tool the commit touches:
+config, i18n, builder, page, footer, images, brand, cli, template.
+
+Append `!` before the colon — or write `BREAKING CHANGE:` in the body — for a
+change that makes an existing letterhead.yaml stop working.
+
+    feat(footer): print a row per column, not per line
+    fix(config): name the setting a bad length came from
+    feat(page)!: read background paths relative to the configuration
+EOF
+    exit 1
+fi
+
+# Not fatal: git log --oneline and the changelog both read better under 72
+# columns, but a long subject is a blemish, not a mistake.
+length=$(printf '%s' "$subject" | wc -c | tr -d ' ')
+if [ "$length" -gt 72 ]; then
+    printf 'Note: the subject runs to %s characters; 72 is where it stops fitting.\n' \
+        "$length" >&2
+fi
+
+exit 0

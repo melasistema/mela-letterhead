@@ -6,6 +6,35 @@ on:
   pull_request:
 
 jobs:
+  # The version and the changelog are derived from the commit subjects, so a
+  # subject release-please cannot read is a change that goes out unrecorded.
+  # This runs the same script the commit-msg hook does, for the clones that
+  # never enabled it.
+  commit-messages:
+    name: Commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check every subject on the branch
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          status=0
+          for sha in $(git rev-list --no-merges "$BASE..$HEAD"); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/message"
+            printf '%s  %s\n' "$(git log -1 --format=%h "$sha")" \
+                              "$(git log -1 --format=%s "$sha")"
+            .githooks/commit-msg "$RUNNER_TEMP/message" || status=1
+          done
+          exit $status
+
   test:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest

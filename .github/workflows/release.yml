@@ -1,0 +1,30 @@
+name: Release
+
+# Versioning runs off the commit messages. Every push to master is read by
+# release-please, which works out the next version from the conventional
+# commits since the last tag and keeps a pull request open with the bump and a
+# draft changelog section in it. Nothing is released until that request is
+# merged, which is the point: the generated section is a list of commit
+# subjects, and CHANGELOG.md is written in prose, so the request is where the
+# one is turned into the other by hand.
+#
+# Merging that request bumps the version, tags it and cuts a GitHub release.
+# It publishes nothing: the package is not on PyPI yet, and a release that
+# stops at the tag is the whole of what is wanted for now.
+on:
+  push:
+    branches: [master]
+
+jobs:
+  release-please:
+    name: Propose the release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
