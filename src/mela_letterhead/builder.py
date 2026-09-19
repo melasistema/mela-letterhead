@@ -1,8 +1,9 @@
 """The build pipeline: Markdown in, PDF out.
 
 Each document is built in its own directory under ``build_dir``, into which
-everything it needs is copied first — the Typst module, the logo, the resolved
-configuration. That costs a few kilobytes and buys two things: Typst compiles
+everything it needs is copied first — the Typst module, the logo, the page
+background, the resolved configuration. That costs a few kilobytes and buys two
+things: Typst compiles
 with its root set to a directory containing nothing but this document, and the
 directory can be read afterwards to see exactly what was handed to the
 compiler. Nothing in it is an input; deleting it loses nothing.
@@ -152,8 +153,11 @@ def _stage(config: Config, document: Document, resolved: Dict[str, Any]) -> Path
 
     shutil.copy2(ASSETS / "letterhead.typ", workdir / "letterhead.typ")
 
-    logo = _stage_logo(config, workdir)
-    resolved["brand"]["logo"] = logo
+    # Both of these arrive as the path the user wrote and leave as the name
+    # the file landed under here, which is all Typst ever sees of them.
+    resolved["brand"]["logo"] = _stage_logo(config, workdir, resolved["brand"]["logo"])
+    background = resolved["page"]["background"]
+    background["image"] = _stage_background(config, workdir, background["image"])
 
     (workdir / "document.json").write_text(
         json.dumps(resolved, ensure_ascii=False, indent=2) + "\n",
@@ -162,30 +166,79 @@ def _stage(config: Config, document: Document, resolved: Dict[str, Any]) -> Path
     return workdir
 
 
-def _stage_logo(config: Config, workdir: Path) -> Optional[str]:
-    """Copy the logo beside the Typst module, and return its name there."""
-    configured = config.data["brand"].get("logo")
+def _stage_logo(
+    config: Config, workdir: Path, configured: Optional[str]
+) -> Optional[str]:
+    """The brand's mark, as the configuration names it."""
+    return _stage_asset(
+        config,
+        workdir,
+        configured,
+        "brand.logo",
+        "logo",
+        missing="Remove the setting to set the brand name as a wordmark instead.",
+    )
+
+
+def _stage_background(
+    config: Config, workdir: Path, configured: Optional[str]
+) -> Optional[str]:
+    """The picture behind the page, as the configuration names it.
+
+    The advice matters more here than for the logo, because the likeliest way
+    to arrive at this setting is with a sheet that was drawn for a printer and
+    exists as a PDF.
+    """
+    return _stage_asset(
+        config,
+        workdir,
+        configured,
+        "page.background.image",
+        "background",
+        unplaceable="A sheet drawn in a page-layout program has to be exported "
+        "raster — PNG or JPEG, 300 dpi for print.",
+    )
+
+
+def _stage_asset(
+    config: Config,
+    workdir: Path,
+    configured: Optional[str],
+    setting: str,
+    stem: str,
+    missing: str = "",
+    unplaceable: str = "",
+) -> Optional[str]:
+    """Copy a picture the configuration names, and return its name here.
+
+    The logo and the page background are both read relative to the
+    configuration file rather than the document that is being printed: they
+    belong to the letterhead, and nothing written on it refers to them. That
+    is the whole difference between these two and :func:`_stage_images`.
+
+    Both are refused by name when Typst could not place them, before a compile
+    that would fail halfway through with something less helpful.
+    """
     if not configured:
         return None
 
-    source = config.resolve_path(str(configured))
+    source = config.resolve_path(configured)
     if not source.is_file():
+        where = config.path.name if config.path else config_module.CONFIG_FILENAME
         raise ConfigError(
-            f"brand.logo: {source} does not exist",
-            hint="The path is read relative to "
-            f"{config.path.name if config.path else config_module.CONFIG_FILENAME}. "
-            "Remove the setting to set the brand name as a wordmark instead.",
+            f"{setting}: {source} does not exist",
+            hint=f"The path is read relative to {where}. {missing}".strip(),
         )
 
     suffix = source.suffix.lower()
     if suffix not in IMAGE_SUFFIXES:
         formats = ", ".join(sorted(IMAGE_SUFFIXES))
         raise ConfigError(
-            f"brand.logo: Typst cannot place a {suffix or 'file with no extension'}",
-            hint=f"Use one of: {formats}.",
+            f"{setting}: Typst cannot place a {suffix or 'file with no extension'}",
+            hint=f"Use one of: {formats}. {unplaceable}".strip(),
         )
 
-    name = "logo" + suffix
+    name = stem + suffix
     shutil.copy2(source, workdir / name)
     return name
 

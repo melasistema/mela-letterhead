@@ -86,6 +86,28 @@ class TestToShare:
             units.to_share(value, "brand.wordmark.size", 190.0)
 
 
+class TestToAlpha:
+    def test_a_percentage_and_a_fraction_agree(self):
+        assert units.to_alpha("35%", "page.background.veil") == pytest.approx(0.35)
+        assert units.to_alpha(0.35, "page.background.veil") == pytest.approx(0.35)
+
+    def test_the_two_ends_are_allowed(self):
+        # Nought is what a setting that is off by default has to be able to
+        # say, and one is a picture painted out entirely.
+        assert units.to_alpha(0, "page.background.veil") == 0
+        assert units.to_alpha("100%", "page.background.veil") == 1
+
+    @pytest.mark.parametrize("value", [35, 1.5, -0.2, "-10%"])
+    def test_a_share_outside_nought_to_one_is_refused(self, value):
+        with pytest.raises(ConfigError, match="page.background.veil"):
+            units.to_alpha(value, "page.background.veil")
+
+    @pytest.mark.parametrize("value", ["thin", True, None, "0.4pt"])
+    def test_rejected_forms(self, value):
+        with pytest.raises(ConfigError, match="page.background.veil"):
+            units.to_alpha(value, "page.background.veil")
+
+
 class TestToColour:
     @pytest.mark.parametrize("value", ["#fff", "#f5f5f7", "#00000080"])
     def test_accepted_forms(self, value):

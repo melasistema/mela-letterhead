@@ -15,7 +15,8 @@
 //
 //  Page composition:
 //
-//    · every page  → the border, if one is asked for, under everything else
+//    · every page  → the background picture and the border, if either is
+//                    asked for, under everything else
 //    · first page  → the full header band: mark, tagline and fields
 //    · inner pages → a running header: small mark, title, page n of N
 //    · last page   → the full footer band: columns of legal and contact detail
@@ -100,6 +101,45 @@
       )[#line.text])
     }
   })
+}
+
+// ─── The picture behind the page ───────────────────────────────────────────
+// A sheet somebody designed elsewhere, a watermark, a texture. It is drawn
+// before anything else, so the bands and the border sit on top of it — and so
+// that a letterhead built this way can turn both of them off and be nothing
+// but the picture with text on it.
+//
+// The veil is a translucent white rectangle and not an opacity, because Typst
+// has none: it pales a busy picture until text reads over it, which works on
+// white paper and is worth nothing on any other.
+
+#let page-background(cfg, current) = {
+  let bg = cfg.page.at("background", default: (image: none))
+  let file = bg.at("image", default: none)
+  if file == none { return }
+
+  let wanted = if bg.pages == "all" {
+    true
+  } else if bg.pages == "rest" {
+    current > 1
+  } else {
+    current == 1
+  }
+  if not wanted { return }
+
+  let width = len(cfg.page.width)
+  let height = len(cfg.page.height)
+  place(top + left, image(file, width: width, height: height, fit: bg.fit))
+
+  let veil = float(bg.veil)
+  if veil > 0 {
+    place(top + left, rect(
+      width: width,
+      height: height,
+      fill: white.transparentize(100% - veil * 100%),
+      stroke: none,
+    ))
+  }
 }
 
 // ─── The border around the paper ───────────────────────────────────────────
@@ -357,6 +397,7 @@
       let current = counter(page).at(here()).first()
       let total = counter(page).final().first()
 
+      page-background(cfg, current)
       page-border(cfg)
 
       if current == 1 and cfg.header.show {

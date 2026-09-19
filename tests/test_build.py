@@ -89,6 +89,27 @@ class TestBuild:
         results = builder.build_all(config)
         assert results[0].pdf.read_bytes().startswith(b"%PDF")
 
+    def test_a_brand_may_have_a_mark_per_market(self, project):
+        # The logo is a string like any other, so it may be written once per
+        # language — and it is staged in the document's language, not in the
+        # printed form of the mapping.
+        shutil.copy2(SCAFFOLD / "plate-condition.svg", project / "assets" / "logo-it.svg")
+        text = (project / "letterhead.yaml").read_text(encoding="utf-8")
+        (project / "letterhead.yaml").write_text(
+            text.replace(
+                "  logo: assets/logo.svg\n",
+                "  logo: { en: assets/logo.svg, it: assets/logo-it.svg }\n",
+            ),
+            encoding="utf-8",
+        )
+        (project / "offerta.md").write_text(
+            "---\ntitle: Offerta\nlang: it\n---\n# Offerta\n\nTesto.\n", encoding="utf-8"
+        )
+        config = config_module.load(project / "letterhead.yaml")
+        builder.build_all(config, [project / "offerta.md"], keep_build=True)
+        staged = (config.build_dir / "offerta" / "logo.svg").read_bytes()
+        assert staged == (project / "assets" / "logo-it.svg").read_bytes()
+
     def test_a_wordmark_a_coloured_band_and_a_border_compile_together(self, project):
         # The three ways a letterhead is made to look like somebody's own
         # without an image anywhere in it.
@@ -128,6 +149,36 @@ class TestBuild:
         assert resolved["brand"]["wordmark"]["running_color"] == resolved["palette"]["ink"]
         # The quotations are not dragged along by the header band.
         assert resolved["palette"]["band"] == "#f5f5f7"
+
+    def test_a_designed_sheet_carries_the_document(self, project):
+        # The tool turned around: no band of its own, a picture of paper
+        # somebody designed elsewhere, and Markdown set on top of it.
+        text = (project / "letterhead.yaml").read_text(encoding="utf-8")
+        text = text.replace("header:\n  show: true\n", "header:\n  show: false\n")
+        text = text.replace("footer:\n  show: true\n", "footer:\n  show: false\n")
+        text = text.replace("  show: true\n  logo_width", "  show: false\n  logo_width")
+        text = text.replace(
+            "  margin:\n",
+            "  background:\n    image: assets/plate-roof-plan.svg\n"
+            "    pages: all\n    veil: 35%\n  margin:\n",
+        )
+        (project / "letterhead.yaml").write_text(text, encoding="utf-8")
+
+        config = config_module.load(project / "letterhead.yaml")
+        results = builder.build_all(config, keep_build=True)
+        assert results[0].pdf.read_bytes().startswith(b"%PDF")
+
+        workdir = config.build_dir / "example-letter"
+        assert (workdir / "background.svg").is_file()
+        resolved = json.loads(
+            (workdir / "document.json").read_text(encoding="utf-8")
+        )
+        # The staged name, not the path the user wrote: Typst compiles with its
+        # root in the build directory and can read nothing above it.
+        assert resolved["page"]["background"]["image"] == "background.svg"
+        assert resolved["page"]["background"]["veil"] == pytest.approx(0.35)
+        # With no header band, nothing pushes the first page down.
+        assert resolved["page"]["first_page_extra"] == 0
 
     def test_the_spellings_of_older_pandoc_still_compile(self, project):
         # Debian and Ubuntu ship Pandoc 3.1, whose Typst writer emits
@@ -231,22 +282,42 @@ class TestStagingImages:
 
 
 class TestStaging:
+    def config(self, project):
+        return config_module.load(project / "letterhead.yaml")
+
     def test_a_missing_logo_points_at_the_configuration(self, project):
         (project / "assets" / "logo.svg").unlink()
-        config = config_module.load(project / "letterhead.yaml")
         with pytest.raises(ConfigError) as caught:
-            builder._stage_logo(config, project)
+            builder._stage_logo(self.config(project), project, "assets/logo.svg")
         assert "letterhead.yaml" in caught.value.hint
 
     def test_a_logo_typst_cannot_place_is_refused_up_front(self, project):
         (project / "assets" / "logo.pdf").write_bytes(b"%PDF-1.4")
-        text = (project / "letterhead.yaml").read_text(encoding="utf-8")
-        (project / "letterhead.yaml").write_text(
-            text.replace("logo: assets/logo.svg", "logo: assets/logo.pdf"), encoding="utf-8"
-        )
-        config = config_module.load(project / "letterhead.yaml")
         with pytest.raises(ConfigError, match="cannot place"):
-            builder._stage_logo(config, project)
+            builder._stage_logo(self.config(project), project, "assets/logo.pdf")
+
+    def test_a_missing_background_names_its_own_setting(self, project):
+        with pytest.raises(ConfigError) as caught:
+            builder._stage_background(self.config(project), project, "assets/sheet.png")
+        assert "page.background.image" in caught.value.message
+
+    def test_a_background_exported_as_pdf_is_refused_with_the_reason(self, project):
+        # The mistake this feature invites: a designer exports the sheet from
+        # InDesign the way they always do, and Typst places no PDF.
+        (project / "assets" / "sheet.pdf").write_bytes(b"%PDF-1.4")
+        with pytest.raises(ConfigError) as caught:
+            builder._stage_background(self.config(project), project, "assets/sheet.pdf")
+        assert "cannot place" in caught.value.message
+        assert "raster" in caught.value.hint
+
+    def test_a_staged_asset_keeps_its_format_and_takes_the_given_name(self, project):
+        config = self.config(project)
+        staged = builder._stage_background(config, project, "assets/logo.svg")
+        assert staged == "background.svg"
+        assert (project / "background.svg").is_file()
+
+    def test_an_asset_that_is_not_named_stages_nothing(self, project):
+        assert builder._stage_background(self.config(project), project, None) is None
 
     def test_a_font_path_that_is_not_a_directory_is_refused(self, project):
         text = (project / "letterhead.yaml").read_text(encoding="utf-8")

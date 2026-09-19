@@ -39,6 +39,17 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   under the bands, so a full-bleed band interrupts it. Off by default.
 - `units.to_share`, for a measurement written either as a share or as a length
   to be divided by a known whole.
+- `page.background`: a picture behind the page — a sheet designed elsewhere, a
+  watermark, a texture. Read relative to the configuration like the logo, drawn
+  under the border and the bands, with `fit` (`cover` or `contain`), `pages`
+  (`first`, `rest` or `all`) and `veil`, a white overlay that keeps text
+  readable over a busy picture. Turn the header, running header and footer off
+  and the tool sets Markdown onto paper somebody else designed. Typst places no
+  PDF, so such a sheet has to be exported raster; and since Typst has no image
+  opacity the veil is literally a translucent white rectangle, which works on
+  white paper and nowhere else.
+- `units.to_alpha`, a share bounded to nought…one, for a value that is an
+  opacity rather than a width.
 
 ### Changed
 
@@ -51,6 +62,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   screenshots were retaken from it.
 - `mela-letterhead init` now says that a logo and a name are both finished
   letterheads, rather than telling you to supply a logo.
+- `mela-letterhead check` reports the page background when one is set, and
+  fails when the file is not there.
+
+### Fixed
+
+- `brand.logo` written as a language map — a brand with a different mark per
+  market — was staged as the printed form of the mapping and reported as a
+  missing file. The logo and the page background are now both staged from the
+  resolved configuration, in the document's own language, as the documentation
+  has always said they were.
 
 ## [0.1.0] — 2026-09-16
 

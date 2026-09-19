@@ -160,7 +160,10 @@ def command_check(args: argparse.Namespace) -> int:
     print(f"     brand          {brand}")
     print(f"     language       {config.default_language}")
 
-    logo = config.data["brand"].get("logo")
+    # Both paths may be written as a language map, so they are resolved the way
+    # a build would resolve them, in the project's own default language.
+    chain = i18n.fallback_chain(config.default_language)
+    logo = i18n.localise(config.data["brand"].get("logo"), chain)
     if logo:
         path = config.resolve_path(str(logo))
         if path.is_file():
@@ -170,6 +173,15 @@ def command_check(args: argparse.Namespace) -> int:
             print(f"  {_red('✗')}  logo not found: {_relative(path)}")
     else:
         print(f"     logo           {_dim('none — the brand name is set as a wordmark')}")
+
+    background = i18n.localise(config.data["page"]["background"].get("image"), chain)
+    if background:
+        path = config.resolve_path(str(background))
+        if path.is_file():
+            print(f"     background     {_relative(path)}")
+        else:
+            problems += 1
+            print(f"  {_red('✗')}  background not found: {_relative(path)}")
 
     languages = i18n.available_locales(config.locales_dir)
     print(f"     locale packs   {', '.join(languages)}")

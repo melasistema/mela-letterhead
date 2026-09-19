@@ -102,6 +102,32 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             # of sides.
             "sides": "all",
         },
+        # A picture behind everything else. Read relative to this file, like
+        # the logo and unlike a picture in the body: it belongs to the
+        # letterhead, and no document mentions it.
+        #
+        # This is what turns the tool around. A designer who already has a
+        # sheet — drawn in Illustrator, printed by a printer — exports it,
+        # points this at it, sets `header.show` and `footer.show` to false and
+        # adjusts the margins, and what comes out is their own paper with
+        # Markdown set on it.
+        "background": {
+            # PNG, JPEG or SVG; 300 dpi for print. Typst places no PDF, so a
+            # sheet drawn in a page-layout program has to be exported raster.
+            "image": None,
+            # "cover" fills the paper and crops what will not fit; "contain"
+            # fits the whole picture inside it and leaves the paper showing
+            # where the proportions disagree.
+            "fit": "cover",
+            # "first", "rest" (every page but the first) or "all". A designed
+            # sheet is usually "first", with a plainer second sheet or none.
+            "pages": "first",
+            # White laid over the picture, from 0 (none) to 1 (opaque), so
+            # that text stays readable over it. Typst has no image opacity,
+            # so this really is a translucent white rectangle: it pales a
+            # picture on white paper, and does nothing good on any other.
+            "veil": 0,
+        },
     },
     # The colours of the whole document. Each band may override the ones it
     # uses — see `header.fill` and `footer.fill` — which is what keeps a
@@ -309,6 +335,10 @@ _FONT_WEIGHTS = (
     "black",
 )
 
+#: How a page background may be fitted to the paper, and where it may be drawn.
+_BACKGROUND_FITS = ("cover", "contain")
+_BACKGROUND_PAGES = ("first", "rest", "all")
+
 #: What each name for a border's sides expands to.
 _BORDER_SIDES: Dict[str, tuple] = {
     "all": ("left", "right", "top", "bottom"),
@@ -471,8 +501,10 @@ def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
     return {
         "brand": {
             "name": brand.get("name") or "",
-            # Filled in by the builder once the logo has been staged.
-            "logo": None,
+            # The path as written, with a language map already collapsed. The
+            # builder replaces it with the name the file landed under in the
+            # build directory.
+            "logo": _as_text(brand.get("logo")) or None,
             "wordmark": _resolve_wordmark(
                 brand["wordmark"], fonts, palette, mark_width, header["ink"]
             ),
@@ -493,6 +525,7 @@ def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
             "first_page_extra": first_page_extra,
             "footer_reserve": footer_reserve,
             "border": _resolve_border(data["page"]["border"], palette),
+            "background": _resolve_background(data["page"]["background"]),
         },
         "palette": palette,
         "fonts": fonts,
@@ -617,6 +650,43 @@ def _resolve_border(border: Dict[str, Any], palette: Dict[str, str]) -> Dict[str
         "color": _colour_or(border["color"], "page.border.color", palette["accent"]),
         "inset": units.to_points(border["inset"], "page.border.inset"),
         "sides": _sides(border["sides"], "page.border.sides"),
+    }
+
+
+def _resolve_background(background: Dict[str, Any]) -> Dict[str, Any]:
+    """The picture behind the page, and where it is drawn.
+
+    The file itself is not opened here — like the logo it is staged into the
+    build directory, and the builder writes back the name it landed under.
+    Everything else about it is settled now, so that Typst is handed a fit it
+    can use and a page test it can answer with an integer.
+    """
+    fit = str(background["fit"]).lower()
+    if fit not in _BACKGROUND_FITS:
+        raise ConfigError(
+            f"page.background.fit: expected {' or '.join(_BACKGROUND_FITS)}, "
+            f"got {background['fit']!r}",
+            hint="'cover' fills the paper and crops what will not fit; "
+            "'contain' fits the whole picture inside it.",
+        )
+
+    pages = str(background["pages"]).lower()
+    if pages not in _BACKGROUND_PAGES:
+        raise ConfigError(
+            f"page.background.pages: expected one of "
+            f"{', '.join(_BACKGROUND_PAGES)}, got {background['pages']!r}",
+            hint="'first' prints it on the first page only, 'rest' on every "
+            "page after it, 'all' on all of them.",
+        )
+
+    return {
+        # As written, with a language map already collapsed — a brand with a
+        # sheet per market has one per market here too. Replaced by the
+        # builder with the staged name.
+        "image": _as_text(background["image"]) or None,
+        "fit": fit,
+        "pages": pages,
+        "veil": units.to_alpha(background["veil"], "page.background.veil"),
     }
 
 

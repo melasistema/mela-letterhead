@@ -74,6 +74,24 @@ page:
   #   sides: left # all · left · right · top · bottom · x · y · none,
   #               # or a list: [left, bottom]
 
+  # A picture behind everything else, read relative to this file. This is the
+  # other way to use the tool: if you already have a sheet — designed in
+  # Illustrator, or printed by your printer — export it, point this at it, set
+  # `header.show` and `footer.show` to false below, adjust the margins to clear
+  # your own artwork, and what comes out is your paper with Markdown set on it.
+  #
+  # Typst places PNG, JPEG and SVG, and no PDF, so a sheet drawn in a
+  # page-layout program has to be exported raster — 300 dpi for print.
+  # background:
+  #   image: assets/sheet.png
+  #   fit: cover # cover fills the paper and crops the overhang;
+  #              # contain fits the whole picture and leaves paper showing
+  #   pages: first # first · rest (every page after the first) · all
+  #   # White laid over the picture so that text still reads on it, from 0 to
+  #   # 1. Typst has no image opacity, so this is literally a translucent white
+  #   # rectangle: it pales a picture on white paper and helps nowhere else.
+  #   veil: 0.35
+
 # ── Colour ──────────────────────────────────────────────────────────────────
 # Change `accent` first: it carries the headings, the list markers and the
 # links, and it is what makes the paper look like yours.

@@ -19,7 +19,8 @@ Two families of measurement are accepted, and each field belongs to exactly one:
     A share of the space available: ``60%``, or the bare number ``0.6``. Kept
     as a fraction, multiplied by ``100%`` in Typst. Used for the width of an
     image, which is measured against the column it sits in rather than
-    against the paper.
+    against the paper. :func:`to_alpha` is the same family bounded to
+    nought…one, for a share that is an opacity rather than a width.
 
 ``share``
     A ratio that also accepts an absolute length and divides it by a known
@@ -59,6 +60,13 @@ _RATIO_RE = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*(%)?\s*$")
 
 #: A share this far above the whole is a mistyped percentage, not a design.
 _RATIO_CEILING = 5.0
+
+_SHARE_HINT = "Use a fraction such as 0.002, a percentage, or a length such as '0.4pt'."
+
+_ALPHA_HINT = (
+    "Use a percentage such as '35%', or the fraction 0.35. Nought is none of it "
+    "and 1 is all of it."
+)
 
 _HEX_COLOUR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
@@ -189,10 +197,29 @@ def to_share(
     return to_ratio(value, field)
 
 
-def _plain_number(value: Union[str, Number], field: str) -> float:
+def to_alpha(value: Union[str, Number], field: str) -> float:
+    """Return ``value`` as a share from nought to one.
+
+    ``"35%"`` and ``0.35`` are the same thing. Unlike :func:`to_ratio`, nought
+    is allowed and means none of it — which is what a setting that is off by
+    default has to be able to say — and anything above one is refused, because
+    there is no more than all of it.
+    """
+    ratio = _plain_number(value, field, hint=_ALPHA_HINT)
+    if not 0.0 <= ratio <= 1.0:
+        raise ConfigError(
+            f"{field}: {value!r} is not a share between nought and one",
+            hint=_ALPHA_HINT,
+        )
+    return ratio
+
+
+def _plain_number(
+    value: Union[str, Number], field: str, hint: str = _SHARE_HINT
+) -> float:
     """A share with no bound on its sign, for tracking and the like."""
     if isinstance(value, bool):
-        raise ConfigError(f"{field}: expected a share or a length, got a boolean")
+        raise ConfigError(f"{field}: expected a share, got a boolean")
     if isinstance(value, (int, float)):
         return float(value)
     if isinstance(value, str):
@@ -200,10 +227,7 @@ def _plain_number(value: Union[str, Number], field: str) -> float:
         if match is not None:
             ratio = float(match.group(1))
             return ratio / 100.0 if match.group(2) else ratio
-    raise ConfigError(
-        f"{field}: expected a share or a length, got {value!r}",
-        hint="Use a fraction such as 0.002, a percentage, or a length such as '0.4pt'.",
-    )
+    raise ConfigError(f"{field}: expected a share, got {value!r}", hint=hint)
 
 
 def to_colour(value: object, field: str) -> str:

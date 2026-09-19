@@ -358,6 +358,72 @@ class TestBorder:
             self._border(tmp_path, MINIMAL + "page:\n  border:\n    sides: diagonal\n")
 
 
+class TestBackground:
+    def _background(self, tmp_path, text=MINIMAL):
+        resolved = config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), "en"
+        )
+        return resolved["page"]["background"]
+
+    def _written(self, settings):
+        return MINIMAL + "page:\n  background:\n" + settings
+
+    def test_there_is_none_by_default(self, tmp_path):
+        background = self._background(tmp_path)
+        assert background["image"] is None
+        assert background["veil"] == 0
+
+    def test_the_written_path_travels_for_the_builder_to_replace(self, tmp_path):
+        background = self._background(
+            tmp_path, self._written("    image: assets/sheet.png\n")
+        )
+        assert background["image"] == "assets/sheet.png"
+        assert background["fit"] == "cover"
+        assert background["pages"] == "first"
+
+    def test_a_sheet_may_be_written_once_per_language(self, tmp_path):
+        # A designer with an Italian sheet and an English one is the ordinary
+        # case, not an exotic one.
+        text = self._written(
+            "    image: { en: assets/sheet-en.png, it: assets/sheet-it.png }\n"
+        )
+        config = make_config(tmp_path, text)
+        italian = config_module.resolve(config, make_document(tmp_path), "it")
+        assert italian["page"]["background"]["image"] == "assets/sheet-it.png"
+        english = config_module.resolve(config, make_document(tmp_path), "en")
+        assert english["page"]["background"]["image"] == "assets/sheet-en.png"
+
+    @pytest.mark.parametrize("written", ["35%", "0.35"])
+    def test_the_veil_is_a_share_however_it_is_written(self, tmp_path, written):
+        background = self._background(tmp_path, self._written(f"    veil: {written}\n"))
+        assert background["veil"] == pytest.approx(0.35)
+
+    def test_a_veil_thicker_than_opaque_is_refused(self, tmp_path):
+        with pytest.raises(ConfigError, match="page.background.veil"):
+            self._background(tmp_path, self._written("    veil: 35\n"))
+
+    def test_fit_is_a_setting_and_not_a_language(self, tmp_path):
+        # `fit` has the shape of a language tag, so a background written with
+        # nothing else in it would otherwise be read as a translation and
+        # swallow the section.
+        background = self._background(tmp_path, self._written("    fit: contain\n"))
+        assert background["fit"] == "contain"
+
+    def test_a_fit_typst_has_no_name_for_is_refused(self, tmp_path):
+        with pytest.raises(ConfigError, match="page.background.fit"):
+            self._background(tmp_path, self._written("    fit: stretch\n"))
+
+    def test_the_pages_it_prints_on(self, tmp_path):
+        background = self._background(tmp_path, self._written("    pages: rest\n"))
+        assert background["pages"] == "rest"
+
+    def test_the_footers_spelling_is_not_this_ones(self, tmp_path):
+        # `footer.pages` takes last/all and this one first/rest/all, so the
+        # wrong one has to be named rather than quietly meaning "first".
+        with pytest.raises(ConfigError, match="page.background.pages"):
+            self._background(tmp_path, self._written("    pages: last\n"))
+
+
 class TestFooterRows:
     def _rows(self, tmp_path):
         resolved = config_module.resolve(

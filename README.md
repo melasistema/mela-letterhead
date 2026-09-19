@@ -59,6 +59,10 @@ face, a weight, a colour and a tagline of its own — a finished letterhead, not
 fallback. Colour the bands, put a rule down the edge of the paper, and the
 letterhead is yours without a single graphic in it.
 
+**Or bring paper of your own.** If a designer has already drawn your sheet,
+point `page.background` at it, turn the bands off, and the tool stops building a
+letterhead and starts setting Markdown onto yours.
+
 <p align="center">
   <img src="assets/screenshots/04-last-page.png" width="880"
        alt="The last page of the same quotation: two drawings side by side at the top, signature lines rendered as grey monospaced fields below, and at the foot of the page a band with two centred columns — the company's office, telephone, e-mail and VAT number on the left, the bank details with the IBAN in red on the right." />
@@ -334,6 +338,59 @@ quietest version and usually the best; `sides` also takes a list, `[left,
 bottom]`. The border is drawn on every page and *under* the bands, so a
 full-bleed band interrupts it rather than being crossed by it.
 
+#### Markdown onto paper you already have
+
+Everything above builds a letterhead out of settings. This turns the tool
+around. If a designer has already drawn your sheet — or your printer has, and
+you have the file — point `page.background` at it and switch the tool's own
+furniture off:
+
+```yaml
+page:
+  background:
+    image: assets/sheet.png
+    fit: cover      # or contain
+    pages: all      # first · rest · all
+    veil: 0         # white laid over it, 0 to 1
+  margin:
+    x: 22mm
+    top: 82mm       # clear your own artwork
+    bottom: 38mm
+
+header:
+  show: false
+footer:
+  show: false
+running:
+  show: false
+```
+
+<p align="center">
+  <img src="assets/screenshots/06-designed-sheet.png" width="880"
+       alt="A quotation set on a sheet designed elsewhere: a deep teal band across the top carrying the wordmark ATELIER NORD and two interlocking circles in mint and amber, an angled lower edge to the band, a thin amber rule down the left margin, and a matching teal strip at the foot carrying the address and VAT number. The document's own heading and text sit in the white space between them; none of it comes from the tool." />
+</p>
+
+The background is read relative to `letterhead.yaml`, like the logo and unlike a
+picture in the body — it belongs to the paper, not to anything written on it.
+It is drawn under everything, so you can leave the bands on and put a texture or
+a watermark behind them if that is what you want; `veil` is there for exactly
+that case.
+
+Two things worth knowing before you export:
+
+- **Typst places PNG, JPEG and SVG, and no PDF.** A sheet drawn in Illustrator
+  or InDesign has to be exported raster — 300 dpi for print, which is about
+  2480 × 3508 for A4. The file is embedded in every PDF built from it, so a
+  40 MB export becomes a 40 MB letter.
+- **`veil` is a white rectangle, not an opacity.** Typst has no image opacity,
+  so paling a background means covering it. That works on white paper and
+  nowhere else: on a coloured or dark sheet a veil will fog the design rather
+  than soften it, and the answer there is to export the artwork already pale.
+
+`fit: cover` fills the paper and crops whatever will not fit; `fit: contain`
+fits the whole picture inside it and leaves paper showing where the proportions
+disagree. Export at the page's own proportions and the two are the same thing.
+
 ### Header fields
 
 ```yaml
@@ -594,7 +651,8 @@ Error: letterhead.yaml: unknown setting 'palete'
 
 **A picture is refused, or lands somewhere you did not expect.** Its path is
 read relative to the document that names it — not to `letterhead.yaml`, which is
-where the logo's path is read from. `mela-letterhead build --keep-build` leaves
+where the logo's and the background's paths are read from.
+`mela-letterhead build --keep-build` leaves
 every picture the document used in `.letterhead-build/<document>/images/`, which
 is exactly what the compiler was given.
 
@@ -606,6 +664,16 @@ itself with `header.fill` and `footer.fill`, and leave the palette pale.
 and that one colour is used on both grounds — the header band and the bare paper
 of the running header. Delete `brand.wordmark.color` and it follows each of them
 instead.
+
+**The background sheet is refused.** If the message says Typst cannot place a
+`.pdf`, that is the usual one: export the artwork as PNG or JPEG instead. If it
+says the file does not exist, remember that this path is read relative to
+`letterhead.yaml` and not to the document — `mela-letterhead check` prints the
+file it resolved to.
+
+**The text is sitting on top of the artwork.** Nothing measures your sheet for
+you; the tool only knows the margins you gave it. Raise `page.margin.top` until
+the body clears the design, and `page.margin.bottom` until it clears the foot.
 
 **A document ends on a page holding nothing but the bands.** The footer reserves
 its room at the end of the body. Trim the text, or raise `page.margin.bottom`.
