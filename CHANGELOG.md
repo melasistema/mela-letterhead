@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-09-19
+
 ### Fixed
 
 - A setting whose name has the shape of a language tag no longer swallows the
