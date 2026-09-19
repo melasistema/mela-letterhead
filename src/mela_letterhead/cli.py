@@ -89,7 +89,11 @@ def command_init(args: argparse.Namespace) -> int:
     print(f"A letterhead is ready in {_where(target)}.")
     print()
     print("Next:")
-    print(f"  1. Put your own logo at {_bold('assets/logo.svg')} (PNG and JPEG work too).")
+    print(
+        f"  1. Put your own logo at {_bold('assets/logo.svg')} (PNG and JPEG work "
+        f"too) — or delete {_bold('brand.logo')} and have your name set in type "
+        "instead. Both are finished letterheads."
+    )
     print(
         f"  2. Edit {_bold(config_module.CONFIG_FILENAME)} — the brand name, the "
         "colours, and the footer with your real details."

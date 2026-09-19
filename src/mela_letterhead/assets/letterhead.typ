@@ -15,8 +15,9 @@
 //
 //  Page composition:
 //
-//    · first page  → the full header band: logo and fields
-//    · inner pages → a running header: small logo, title, page n of N
+//    · every page  → the border, if one is asked for, under everything else
+//    · first page  → the full header band: mark, tagline and fields
+//    · inner pages → a running header: small mark, title, page n of N
 //    · last page   → the full footer band: columns of legal and contact detail
 //
 //  The footer is the awkward one. It sits on the last page only, but Typst
@@ -36,32 +37,94 @@
 }
 
 // ─── The brand mark ────────────────────────────────────────────────────────
-// A brand without a logo file still has a name, and a name set in the display
-// face is a perfectly good letterhead. It occupies exactly the width the logo
-// would have, so the fields beside it stay where they are: the name is set at
-// a size proportional to that width, then measured, and shrunk to fit if it
-// came out wider. "Ann Lee" keeps the nominal size; "Northbridge Surveying and
-// Associates" is scaled down until it stops running into the fields.
+// A brand without a logo file still has a name, and a name set in type is a
+// perfectly good letterhead — for a freelancer it is often the right one. Both
+// marks occupy exactly the width the logo would have, so the fields beside
+// them stay where they are.
+//
+// Every part of the wordmark is a proportion of that width rather than a fixed
+// size, which is what makes the smaller mark in the running header the same
+// design instead of a different one. The name is set at the size asked for,
+// then measured and shrunk if it came out wider than the slot: "Ann Lee" keeps
+// the nominal size; "Northbridge Surveying and Associates" is scaled down
+// until it stops running into the fields.
+//
+// The tagline goes under either mark, and only where it is passed for — page
+// one. The running header is 26mm of paper and has no room for a second line.
+//
+// `ink` is the colour of the wordmark here, which is not the same in both
+// places: the tool resolves one colour for the header band and one for the
+// bare paper of the running header, so that a pale wordmark on a dark band
+// does not disappear on page two.
 
-#let brand-mark(cfg, width) = {
-  let logo = cfg.brand.at("logo", default: none)
-  if logo != none {
+#let brand-mark(cfg, width, ink, tagline: false) = {
+  let brand = cfg.brand
+  let wm = brand.wordmark
+  let how = alignment-of(wm.align)
+  let logo = brand.at("logo", default: none)
+
+  let mark = if logo != none {
     image(logo, width: width)
   } else {
-    let name = cfg.brand.name
-    let nominal = width * 0.17
+    let nominal = width * float(wm.size)
     let styled(size) = text(
-      font: cfg.fonts.display,
-      weight: 700,
+      font: wm.font,
+      weight: wm.weight,
       size: size,
-      fill: rgb(cfg.palette.ink),
-      tracking: width * 0.002,
-    )[#name]
+      fill: rgb(ink),
+      tracking: width * float(wm.tracking),
+    )[#brand.name]
 
     context {
       let natural = measure(styled(nominal)).width
       styled(if natural > width { nominal * (width / natural) } else { nominal })
     }
+  }
+
+  let line = brand.tagline
+  block(width: width, above: 0pt, below: 0pt, {
+    // The gap under the mark is `tagline.gap` and nothing else: the body's
+    // paragraph spacing has no business in the header band.
+    set block(spacing: 0pt)
+    set par(justify: false, spacing: 0pt)
+
+    align(how, mark)
+    if tagline and line.text != none {
+      v(len(line.gap))
+      align(how, text(
+        font: line.font,
+        weight: line.weight,
+        size: width * float(line.size),
+        fill: rgb(line.color),
+        tracking: width * float(line.tracking),
+      )[#line.text])
+    }
+  })
+}
+
+// ─── The border around the paper ───────────────────────────────────────────
+// Drawn before the bands, so that a full-bleed band interrupts it rather than
+// being crossed by it. Nought width — the default — draws nothing at all.
+
+#let page-border(cfg) = {
+  let b = cfg.page.border
+  let weight = len(b.width)
+  if weight > 0pt {
+    let inset = len(b.inset)
+    let edge = weight + rgb(b.color)
+    let drawn(side) = if b.sides.at(side) { edge } else { none }
+
+    place(top + left, dx: inset, dy: inset, rect(
+      width: len(cfg.page.width) - 2 * inset,
+      height: len(cfg.page.height) - 2 * inset,
+      fill: none,
+      stroke: (
+        left: drawn("left"),
+        right: drawn("right"),
+        top: drawn("top"),
+        bottom: drawn("bottom"),
+      ),
+    ))
   }
 }
 
@@ -74,23 +137,23 @@
   let label = field.at("label", default: none)
   let value = field.at("value", default: none)
 
+  let ink = rgb(cfg.header.ink)
   if label != none {
-    text(font: cfg.fonts.sans, weight: 700, size: len(f.size))[#label]
+    text(font: cfg.fonts.sans, weight: 700, size: len(f.size), fill: ink)[#label]
     h(len(f.label_gap))
   }
   if value != none {
-    text(font: cfg.fonts.sans, weight: 400, size: len(f.size))[#value]
+    text(font: cfg.fonts.sans, weight: 400, size: len(f.size), fill: ink)[#value]
   } else if f.when_empty == "rule" {
     box(
       width: len(f.blank_width),
       baseline: 2.5pt,
-      line(length: 100%, stroke: 0.5pt + rgb(cfg.palette.muted)),
+      line(length: 100%, stroke: 0.5pt + rgb(cfg.header.muted)),
     )
   }
 }
 
 #let header-band(cfg) = {
-  let pal = cfg.palette
   let page-width = len(cfg.page.width)
   let side = len(cfg.page.margin.x)
   let column = page-width - 2 * side
@@ -99,7 +162,7 @@
   place(top + left, rect(
     width: page-width,
     height: height,
-    fill: rgb(pal.band),
+    fill: rgb(cfg.header.fill),
     stroke: none,
   ))
 
@@ -108,7 +171,7 @@
     place(top + left, dy: height - rule / 2, rect(
       width: page-width,
       height: rule,
-      fill: rgb(pal.rule),
+      fill: rgb(cfg.header.rule_color),
       stroke: none,
     ))
   }
@@ -117,7 +180,12 @@
     top + left,
     dx: side,
     dy: len(cfg.header.logo.y),
-    brand-mark(cfg, len(cfg.header.logo.width)),
+    brand-mark(
+      cfg,
+      len(cfg.header.logo.width),
+      cfg.brand.wordmark.color,
+      tagline: true,
+    ),
   )
 
   let fields = cfg.header.fields.items
@@ -149,7 +217,7 @@
     top + left,
     dx: side,
     dy: len(r.logo_y),
-    brand-mark(cfg, len(r.logo_width)),
+    brand-mark(cfg, len(r.logo_width), cfg.brand.wordmark.running_color),
   )
 
   place(top + left, dx: side, dy: len(r.text_y), box(
@@ -177,18 +245,18 @@
 // ─── Footer band (last page, or every page) ────────────────────────────────
 
 #let footer-row(row, cfg) = {
-  let pal = cfg.palette
+  let f = cfg.footer
   let label = row.at("label", default: none)
   let value = row.at("value", default: none)
   let target = row.at("link", default: none)
   let style = row.at("style", default: "normal")
 
   let ink = if style == "highlight" {
-    rgb(pal.highlight)
+    rgb(f.highlight)
   } else if style == "muted" {
-    rgb(pal.muted)
+    rgb(f.muted)
   } else {
-    rgb(pal.ink)
+    rgb(f.ink)
   }
 
   if label != none {
@@ -208,7 +276,7 @@
 #let footer-column(column, cfg) = {
   let f = cfg.footer
   set par(leading: len(f.leading), spacing: len(f.leading), justify: false)
-  set text(font: cfg.fonts.display, size: len(f.size), fill: rgb(cfg.palette.ink))
+  set text(font: cfg.fonts.display, size: len(f.size), fill: rgb(f.ink))
 
   align(alignment-of(f.align), {
     let title = column.at("title", default: none)
@@ -226,7 +294,6 @@
 
 #let footer-band(cfg) = {
   let f = cfg.footer
-  let pal = cfg.palette
   let page-width = len(cfg.page.width)
   let side = len(cfg.page.margin.x)
   let offset = len(f.offset)
@@ -235,7 +302,7 @@
   place(bottom + left, dy: -offset, rect(
     width: page-width,
     height: height,
-    fill: rgb(pal.band),
+    fill: rgb(f.fill),
     stroke: none,
   ))
 
@@ -244,7 +311,7 @@
     place(bottom + left, dy: -(offset + height - rule / 2), rect(
       width: page-width,
       height: rule,
-      fill: rgb(pal.rule),
+      fill: rgb(f.rule_color),
       stroke: none,
     ))
   }
@@ -289,6 +356,8 @@
     background: context {
       let current = counter(page).at(here()).first()
       let total = counter(page).final().first()
+
+      page-border(cfg)
 
       if current == 1 and cfg.header.show {
         header-band(cfg)

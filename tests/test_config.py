@@ -184,6 +184,180 @@ class TestImages:
             self._images(tmp_path, MINIMAL + "images:\n  align: middle\n")
 
 
+class TestBandColours:
+    """A band is recoloured on its own, or follows the palette."""
+
+    def _resolve(self, tmp_path, text=MINIMAL):
+        return config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), "en"
+        )
+
+    def test_a_band_follows_the_palette_by_default(self, tmp_path):
+        resolved = self._resolve(tmp_path)
+        palette = resolved["palette"]
+        assert resolved["header"]["fill"] == palette["band"]
+        assert resolved["footer"]["ink"] == palette["ink"]
+        assert resolved["footer"]["rule_color"] == palette["rule"]
+
+    def test_a_band_may_be_coloured_without_the_quotations_going_with_it(self, tmp_path):
+        # The whole point of the setting: `palette.band` also fills the block
+        # quotations and the code, so a strongly coloured header must not be
+        # written there.
+        resolved = self._resolve(
+            tmp_path, MINIMAL.replace("header:\n", 'header:\n  fill: "#2b2440"\n  ink: "#f3f1fa"\n')
+        )
+        assert resolved["header"]["fill"] == "#2b2440"
+        assert resolved["header"]["ink"] == "#f3f1fa"
+        assert resolved["palette"]["band"] == "#f5f5f7"
+
+    def test_the_two_bands_are_coloured_apart(self, tmp_path):
+        resolved = self._resolve(tmp_path, MINIMAL.replace("footer:\n", 'footer:\n  fill: "#101014"\n'))
+        assert resolved["footer"]["fill"] == "#101014"
+        assert resolved["header"]["fill"] == resolved["palette"]["band"]
+
+    def test_a_colour_that_is_not_one_names_the_setting(self, tmp_path):
+        with pytest.raises(ConfigError, match="header.fill"):
+            self._resolve(tmp_path, MINIMAL.replace("header:\n", "header:\n  fill: dark purple\n"))
+
+    def test_ink_is_a_setting_and_not_a_language(self, tmp_path):
+        # `ink` has the shape of a language tag, and a section holding nothing
+        # else would be read as a translation without the reserved-key list.
+        resolved = self._resolve(tmp_path, MINIMAL.replace("header:\n", 'header:\n  ink: "#0a0a0a"\n'))
+        assert resolved["header"]["ink"] == "#0a0a0a"
+        assert resolved["header"]["fields"]["items"], "the section was swallowed"
+
+
+class TestWordmark:
+    """The brand name set in type, for a letterhead with no logo file."""
+
+    def _brand(self, tmp_path, text=MINIMAL, language="en"):
+        resolved = config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), language
+        )
+        return resolved["brand"]
+
+    def test_the_parts_are_shares_of_the_mark(self, tmp_path):
+        # So that the smaller mark in the running header is the same design.
+        wordmark = self._brand(tmp_path)["wordmark"]
+        assert wordmark["size"] == pytest.approx(0.17)
+        assert wordmark["font"] == ["Libertinus Serif", "New Computer Modern"]
+
+    def test_a_length_is_read_as_a_share_of_the_slot(self, tmp_path):
+        # 67mm is `header.logo.width`, so 34pt is a little over a sixth of it.
+        wordmark = self._brand(tmp_path, MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    size: 34pt\n"))
+        assert wordmark["wordmark"]["size"] == pytest.approx(34 / (67 * 72 / 25.4))
+
+    def test_tracking_may_be_nothing_at_all(self, tmp_path):
+        wordmark = self._brand(
+            tmp_path, MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    tracking: 0\n")
+        )
+        assert wordmark["wordmark"]["tracking"] == 0
+
+    def test_the_mark_is_coloured_for_both_grounds(self, tmp_path):
+        # Pale on a dark band, and still legible on the bare paper of the
+        # running header, which has no band behind it.
+        brand = self._brand(
+            tmp_path, MINIMAL.replace("header:\n", 'header:\n  fill: "#2b2440"\n  ink: "#f3f1fa"\n')
+        )
+        assert brand["wordmark"]["color"] == "#f3f1fa"
+        assert brand["wordmark"]["running_color"] == "#1c1c20"
+
+    def test_a_colour_of_its_own_is_used_in_both_places(self, tmp_path):
+        brand = self._brand(tmp_path, MINIMAL.replace("brand:\n", 'brand:\n  wordmark:\n    color: "#c00"\n'))
+        assert brand["wordmark"]["color"] == "#c00"
+        assert brand["wordmark"]["running_color"] == "#c00"
+
+    def test_a_weight_outside_the_scale_is_refused(self, tmp_path):
+        with pytest.raises(ConfigError, match="brand.wordmark.weight"):
+            self._brand(tmp_path, MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    weight: 1200\n"))
+
+    def test_a_named_weight_is_passed_through(self, tmp_path):
+        brand = self._brand(
+            tmp_path, MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    weight: semibold\n")
+        )
+        assert brand["wordmark"]["weight"] == "semibold"
+
+
+class TestTagline:
+    def _tagline(self, tmp_path, text, language="en"):
+        resolved = config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), language
+        )
+        return resolved["brand"]["tagline"]
+
+    def test_there_is_none_by_default(self, tmp_path):
+        assert self._tagline(tmp_path, MINIMAL)["text"] is None
+
+    def test_a_plain_string_is_the_text(self, tmp_path):
+        tagline = self._tagline(tmp_path, MINIMAL.replace("brand:\n", "brand:\n  tagline: Graphic design\n"))
+        assert tagline["text"] == "Graphic design"
+        assert tagline["gap"] == pytest.approx(2.4 * 72 / 25.4)
+
+    def test_it_may_be_written_per_language(self, tmp_path):
+        text = MINIMAL.replace("brand:\n", "brand:\n  tagline: { en: Surveying, it: Rilievi }\n")
+        assert self._tagline(tmp_path, text, "it")["text"] == "Rilievi"
+
+    def test_the_full_form_styles_it(self, tmp_path):
+        text = MINIMAL.replace(
+            "brand:\n",
+            "brand:\n"
+            "  tagline:\n"
+            "    text: { en: Surveying, it: Rilievi }\n"
+            "    size: 11pt\n"
+            '    color: "#445"\n',
+        )
+        tagline = self._tagline(tmp_path, text, "it")
+        assert tagline["text"] == "Rilievi"
+        assert tagline["color"] == "#445"
+        assert tagline["size"] == pytest.approx(11 / (67 * 72 / 25.4))
+
+    def test_it_follows_the_header_band(self, tmp_path):
+        text = MINIMAL.replace("brand:\n", "brand:\n  tagline: Surveying\n").replace(
+            "header:\n", 'header:\n  muted: "#9d95bd"\n'
+        )
+        assert self._tagline(tmp_path, text)["color"] == "#9d95bd"
+
+    def test_an_empty_one_is_no_tagline(self, tmp_path):
+        assert self._tagline(tmp_path, MINIMAL.replace("brand:\n", "brand:\n  tagline: '   '\n"))["text"] is None
+
+
+class TestBorder:
+    def _border(self, tmp_path, text=MINIMAL):
+        resolved = config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), "en"
+        )
+        return resolved["page"]["border"]
+
+    def test_there_is_none_by_default(self, tmp_path):
+        assert self._border(tmp_path)["width"] == 0
+
+    def test_one_side_is_drawn_and_the_others_are_not(self, tmp_path):
+        border = self._border(
+            tmp_path, MINIMAL + "page:\n  border:\n    width: 2.4pt\n    sides: left\n"
+        )
+        assert border["width"] == pytest.approx(2.4)
+        assert border["sides"] == {
+            "left": True,
+            "right": False,
+            "top": False,
+            "bottom": False,
+        }
+
+    def test_sides_may_be_a_list(self, tmp_path):
+        border = self._border(
+            tmp_path, MINIMAL + "page:\n  border:\n    sides: [left, bottom]\n"
+        )
+        assert border["sides"]["left"] and border["sides"]["bottom"]
+        assert not border["sides"]["top"]
+
+    def test_it_falls_back_to_the_accent_colour(self, tmp_path):
+        assert self._border(tmp_path)["color"] == "#4a3f8a"
+
+    def test_a_side_that_is_not_one_is_refused(self, tmp_path):
+        with pytest.raises(ConfigError, match="page.border.sides"):
+            self._border(tmp_path, MINIMAL + "page:\n  border:\n    sides: diagonal\n")
+
+
 class TestFooterRows:
     def _rows(self, tmp_path):
         resolved = config_module.resolve(

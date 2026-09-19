@@ -89,6 +89,46 @@ class TestBuild:
         results = builder.build_all(config)
         assert results[0].pdf.read_bytes().startswith(b"%PDF")
 
+    def test_a_wordmark_a_coloured_band_and_a_border_compile_together(self, project):
+        # The three ways a letterhead is made to look like somebody's own
+        # without an image anywhere in it.
+        text = (project / "letterhead.yaml").read_text(encoding="utf-8")
+        text = text.replace("  logo: assets/logo.svg\n", "")
+        text = text.replace(
+            "header:\n  show: true\n",
+            'header:\n  show: true\n  fill: "#2b2440"\n  ink: "#f3f1fa"\n'
+            '  muted: "#9d95bd"\n  rule_color: "#7a63d4"\n',
+        )
+        text = text.replace(
+            "footer:\n  show: true\n",
+            'footer:\n  show: true\n  fill: "#2b2440"\n  ink: "#f3f1fa"\n'
+            '  highlight: "#ffb4a2"\n',
+        )
+        text = text.replace(
+            "  margin:\n",
+            "  border:\n    width: 2.4pt\n    sides: left\n    inset: 9mm\n  margin:\n",
+        )
+        text = text.replace(
+            "brand:\n  name: Acme Studio\n",
+            "brand:\n  name: Acme Studio\n  wordmark:\n    size: 34pt\n    weight: 300\n",
+        )
+        (project / "letterhead.yaml").write_text(text, encoding="utf-8")
+
+        config = config_module.load(project / "letterhead.yaml")
+        results = builder.build_all(config, keep_build=True)
+        assert results[0].pdf.read_bytes().startswith(b"%PDF")
+
+        resolved = json.loads(
+            (config.build_dir / "example-letter" / "document.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        # Pale on the band, and readable on the bare paper of page two.
+        assert resolved["brand"]["wordmark"]["color"] == "#f3f1fa"
+        assert resolved["brand"]["wordmark"]["running_color"] == resolved["palette"]["ink"]
+        # The quotations are not dragged along by the header band.
+        assert resolved["palette"]["band"] == "#f5f5f7"
+
     def test_the_spellings_of_older_pandoc_still_compile(self, project):
         # Debian and Ubuntu ship Pandoc 3.1, whose Typst writer emits
         # `#blockquote[...]` and `#horizontalrule` where 3.11 emits

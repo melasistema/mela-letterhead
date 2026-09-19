@@ -29,9 +29,28 @@ brand:
   name: Acme Studio
 
   # Relative to this file. PNG, JPEG and SVG all work.
-  # Delete this line to set the brand name as a typographic wordmark instead —
-  # a perfectly good letterhead for anyone without a logo.
+  # Delete this line and the name below is set in type instead, at the size the
+  # logo would have had — which is a complete letterhead, not a fallback, and
+  # is the right one for anyone whose name is their brand.
   logo: assets/logo.svg
+
+  # A line under the mark on page one, under a logo just as under a name.
+  tagline: { en: "Surveying · Exampleton", it: "Rilievi · Exampleton" }
+
+  # How the name is set when there is no logo. Every measurement here is a
+  # share of the width the mark occupies, so the smaller mark in the running
+  # header is the same design rather than another one; write a length such as
+  # 34pt and it is read as a share of `header.logo.width`.
+  # wordmark:
+  #   font: ["Libertinus Serif"]   # defaults to the display stack
+  #   size: 34pt
+  #   weight: 300                  # 100 thin … 400 regular … 900 black
+  #   tracking: 1.2pt              # air between the letters
+  #   align: left
+  #   # Left out, the mark follows the ink of whatever it is printed on: the
+  #   # header band on page one, the paper in the running header. Set it and
+  #   # that one colour is used in both places.
+  #   color: "#2b2440"
 
   # Written into the PDF's metadata. Defaults to the brand name.
   # author: Jane Doe
@@ -44,9 +63,25 @@ page:
     top: 27.5mm # inner pages; page one is pushed down by the header band
     bottom: 39.5mm # the last page gains what the footer band needs
 
+  # A rule around the paper, on every page. Nought width draws nothing, which
+  # is the default. A single line down one side is the quietest version and
+  # usually the best: `sides: left`. The border is drawn under the bands, so a
+  # band interrupts it rather than being crossed by it.
+  # border:
+  #   width: 2.4pt
+  #   color: "#4a3f8a" # defaults to the accent colour
+  #   inset: 9mm # from the edge of the paper
+  #   sides: left # all · left · right · top · bottom · x · y · none,
+  #               # or a list: [left, bottom]
+
 # ── Colour ──────────────────────────────────────────────────────────────────
 # Change `accent` first: it carries the headings, the list markers and the
 # links, and it is what makes the paper look like yours.
+#
+# `band` is shared by the header, the footer, the block quotations and the
+# code, which is right while it stays pale. For a band with real colour in it,
+# leave the palette alone and set `header.fill` and `footer.fill` instead —
+# otherwise the quotations go with it.
 palette:
   band: "#f5f5f7" # the header and footer bands
   rule: "#e6e3ec" # the thin line along a band's inner edge
@@ -114,6 +149,15 @@ header:
   show: true
   height: 43mm
 
+  # The band's own colours. Each falls back to the palette, so the band can be
+  # recoloured without touching anything else on the page. Set `fill` dark and
+  # you will want `ink` pale to go with it; `muted` is the rule printed where a
+  # field has no value, and `rule_color` the line along the lower edge.
+  # fill: "#2b2440"
+  # ink: "#f3f1fa"
+  # muted: "#9d95bd"
+  # rule_color: "#7a63d4"
+
   logo:
     width: 67mm
     y: 11.8mm # from the top of the page
@@ -172,6 +216,13 @@ footer:
   # raising this eats into the space above and below rather than moving the
   # rows down; raise `height` too if a column of yours runs long.
   leading: 6.9pt
+
+  # As in `header`, with `highlight` for the row that has to catch the eye.
+  # fill: "#2b2440"
+  # ink: "#f3f1fa"
+  # muted: "#9d95bd"
+  # highlight: "#ffb4a2"
+  # rule_color: "#7a63d4"
 
   columns:
     - title: { en: Acme Studio, it: Acme Studio }

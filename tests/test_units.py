@@ -59,6 +59,33 @@ class TestToRatio:
             units.to_ratio(value, "images.width")
 
 
+class TestToShare:
+    def test_a_share_is_taken_as_written(self):
+        assert units.to_share(0.17, "brand.wordmark.size", 190.0) == pytest.approx(0.17)
+        assert units.to_share("17%", "brand.wordmark.size", 190.0) == pytest.approx(0.17)
+
+    def test_a_length_is_measured_against_the_whole(self):
+        # Written as a size, kept as a proportion, so that the smaller mark in
+        # the running header is the same design rather than another one.
+        assert units.to_share("38pt", "brand.wordmark.size", 190.0) == pytest.approx(0.2)
+        assert units.to_share("1in", "brand.wordmark.size", 144.0) == pytest.approx(0.5)
+
+    def test_tracking_may_be_nothing_or_negative(self):
+        assert units.to_share(0, "x", 190.0, positive=False) == 0
+        assert units.to_share("-0.4pt", "x", 190.0, positive=False) == pytest.approx(
+            -0.4 / 190.0
+        )
+
+    def test_a_size_still_has_to_be_positive(self):
+        with pytest.raises(ConfigError, match="brand.wordmark.size"):
+            units.to_share(0, "brand.wordmark.size", 190.0)
+
+    @pytest.mark.parametrize("value", ["wide", True, None, 60])
+    def test_rejected_forms(self, value):
+        with pytest.raises(ConfigError, match="brand.wordmark.size"):
+            units.to_share(value, "brand.wordmark.size", 190.0)
+
+
 class TestToColour:
     @pytest.mark.parametrize("value", ["#fff", "#f5f5f7", "#00000080"])
     def test_accepted_forms(self, value):

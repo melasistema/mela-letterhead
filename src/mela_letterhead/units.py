@@ -20,6 +20,13 @@ Two families of measurement are accepted, and each field belongs to exactly one:
     as a fraction, multiplied by ``100%`` in Typst. Used for the width of an
     image, which is measured against the column it sits in rather than
     against the paper.
+
+``share``
+    A ratio that also accepts an absolute length and divides it by a known
+    whole. Used for the parts of the wordmark, which are proportions of the
+    space the mark occupies — so that the smaller mark in the running header
+    is the same design, not a different one — but which a user would rather
+    write as ``32pt``.
 """
 
 from __future__ import annotations
@@ -146,6 +153,57 @@ def to_ratio(value: Union[str, Number], field: str) -> float:
             "width of the column.",
         )
     return ratio
+
+
+def to_share(
+    value: Union[str, Number], field: str, whole: float, positive: bool = True
+) -> float:
+    """Return ``value`` as a fraction of ``whole``.
+
+    A share is written as ``0.17`` or ``'17%'``, exactly as :func:`to_ratio`
+    takes it. A length — ``'32pt'``, ``'11mm'`` — is divided by ``whole``
+    instead, so that a user may write the size they want and still get a
+    proportion, which is what keeps a mark recognisable at two sizes.
+
+    ``positive`` is false for values that may legitimately be zero or negative,
+    such as tracking.
+    """
+    if isinstance(value, str):
+        match = _ABSOLUTE_RE.match(value)
+        # Only with a unit: a bare "0.17" is a share, not 0.17 points.
+        if match is not None and match.group(2):
+            if whole <= 0:
+                raise ConfigError(f"{field}: cannot measure {value!r} against nothing")
+            return to_points(value, field) / whole
+
+    if not positive:
+        ratio = _plain_number(value, field)
+        if abs(ratio) > _RATIO_CEILING:
+            raise ConfigError(
+                f"{field}: {value!r} is not a usable share",
+                hint="Use a fraction such as 0.002, a percentage, or a length "
+                "such as '0.4pt'.",
+            )
+        return ratio
+
+    return to_ratio(value, field)
+
+
+def _plain_number(value: Union[str, Number], field: str) -> float:
+    """A share with no bound on its sign, for tracking and the like."""
+    if isinstance(value, bool):
+        raise ConfigError(f"{field}: expected a share or a length, got a boolean")
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        match = _RATIO_RE.match(value)
+        if match is not None:
+            ratio = float(match.group(1))
+            return ratio / 100.0 if match.group(2) else ratio
+    raise ConfigError(
+        f"{field}: expected a share or a length, got {value!r}",
+        hint="Use a fraction such as 0.002, a percentage, or a length such as '0.4pt'.",
+    )
 
 
 def to_colour(value: object, field: str) -> str:

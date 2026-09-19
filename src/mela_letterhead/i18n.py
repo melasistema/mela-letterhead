@@ -59,6 +59,7 @@ _RESERVED_KEYS = frozenset(
         "title",
         "items",
         "gap",
+        "ink",
         "leading",
         "format",
         "rule",

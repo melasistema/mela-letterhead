@@ -48,6 +48,35 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "logo": None,
         # Written into the PDF's metadata. Defaults to the brand name.
         "author": None,
+        # How the brand name is set when there is no logo file. Every
+        # measurement here is a share of the width the mark occupies
+        # (`header.logo.width` on page one), so that the smaller mark in the
+        # running header is the same design rather than another one. A length
+        # may be written instead and is read as a share of that width.
+        "wordmark": {
+            "font": None,  # defaults to the display stack
+            "size": 0.17,
+            "weight": 700,
+            # Left out, the wordmark follows the ink of whatever it is printed
+            # on: the header band on page one, the paper in the running header.
+            # A band dark enough to need a pale wordmark is therefore not a
+            # band that loses the mark on page two.
+            "color": None,
+            "tracking": 0.002,
+            "align": "left",
+        },
+        # A line under the mark on page one — under a logo just as under a
+        # wordmark. May be written as a plain string, which is the text, or as
+        # the mapping below.
+        "tagline": {
+            "text": None,
+            "font": None,  # defaults to the sans stack
+            "size": 0.055,
+            "weight": 400,
+            "color": None,  # defaults to the header band's muted colour
+            "tracking": 0.0,
+            "gap": "2.4mm",
+        },
     },
     "page": {
         "size": "a4",
@@ -60,7 +89,24 @@ DEFAULT_CONFIG: Dict[str, Any] = {
             # the footer band needs, also automatically.
             "bottom": "39.5mm",
         },
+        # A rule around the paper, on every page. Off at nought width, which is
+        # the default: a border is a strong device and not every brand wants
+        # one. It is drawn under the bands, so a full-bleed band interrupts it
+        # rather than being crossed by it.
+        "border": {
+            "width": 0,
+            "color": None,  # defaults to palette.accent
+            # Distance from the edge of the paper.
+            "inset": "8mm",
+            # "all", one of left/right/top/bottom, "x", "y", "none", or a list
+            # of sides.
+            "sides": "all",
+        },
     },
+    # The colours of the whole document. Each band may override the ones it
+    # uses — see `header.fill` and `footer.fill` — which is what keeps a
+    # strongly coloured band from dragging the quotations and the code along
+    # with it, since those are drawn on `band` too.
     "palette": {
         "band": "#f5f5f7",  # fill of the header and footer bands
         "rule": "#e6e3ec",  # the thin line along a band's inner edge
@@ -141,6 +187,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "gap": "9.1mm",
         # Thickness of the accent line along the band's lower edge.
         "rule": "3pt",
+        # The band's own colours. Each falls back to the palette, so a band is
+        # recoloured on its own: `fill` for the ground, `ink` for the fields
+        # printed on it, `muted` for the rule drawn where a value is missing,
+        # and `rule_color` for the line along the lower edge.
+        "fill": None,
+        "ink": None,
+        "muted": None,
+        "rule_color": None,
         "logo": {
             "width": "67mm",
             "y": "11.8mm",  # from the top of the page
@@ -185,6 +239,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         # Clearance between the band and the last line of text above it.
         "gap": "6.9mm",
         "rule": "3pt",
+        # As in `header`, with `highlight` for the one row that has to catch
+        # the eye. All four fall back to the palette.
+        "fill": None,
+        "ink": None,
+        "muted": None,
+        "highlight": None,
+        "rule_color": None,
         # Distance from the bottom edge of the page to the band.
         "offset": "0mm",
         "align": "center",
@@ -234,6 +295,31 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 _ALIGNMENTS = ("left", "center", "right")
+
+#: Typst's named font weights, accepted wherever a number from 100 to 900 is.
+_FONT_WEIGHTS = (
+    "thin",
+    "extralight",
+    "light",
+    "regular",
+    "medium",
+    "semibold",
+    "bold",
+    "extrabold",
+    "black",
+)
+
+#: What each name for a border's sides expands to.
+_BORDER_SIDES: Dict[str, tuple] = {
+    "all": ("left", "right", "top", "bottom"),
+    "none": (),
+    "left": ("left",),
+    "right": ("right",),
+    "top": ("top",),
+    "bottom": ("bottom",),
+    "x": ("left", "right"),
+    "y": ("top", "bottom"),
+}
 
 
 class Config:
@@ -343,9 +429,17 @@ def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
     margin_top = units.to_points(margin["top"], "page.margin.top")
     margin_bottom = units.to_points(margin["bottom"], "page.margin.bottom")
 
-    header = _resolve_header(data["header"], document)
+    # Resolved first: the bands and the border may each name a colour of their
+    # own, and fall back to the palette when they do not.
+    palette = {
+        key: units.to_colour(value, f"palette.{key}")
+        for key, value in data["palette"].items()
+    }
+    fonts = resolve_fonts(data["fonts"])
+
+    header = _resolve_header(data["header"], document, palette)
     running = _resolve_running(data["running"], strings, data["brand"], document)
-    footer = _resolve_footer(data["footer"])
+    footer = _resolve_footer(data["footer"], palette)
 
     # The first page starts below the header band; the inner pages keep the
     # ordinary top margin. Typst has one top margin per page, so the difference
@@ -370,11 +464,21 @@ def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
     brand = data["brand"]
     title = document.title or strings.get("untitled", "Untitled document")
 
+    # The wordmark is measured against the slot the mark occupies on page one,
+    # which the running header then scales down as a whole.
+    mark_width = header["logo"]["width"]
+
     return {
         "brand": {
             "name": brand.get("name") or "",
             # Filled in by the builder once the logo has been staged.
             "logo": None,
+            "wordmark": _resolve_wordmark(
+                brand["wordmark"], fonts, palette, mark_width, header["ink"]
+            ),
+            "tagline": _resolve_tagline(
+                brand["tagline"], fonts, mark_width, header["muted"]
+            ),
         },
         "document": {
             "title": title,
@@ -388,12 +492,10 @@ def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
             "margin": {"x": margin_x, "top": margin_top, "bottom": margin_bottom},
             "first_page_extra": first_page_extra,
             "footer_reserve": footer_reserve,
+            "border": _resolve_border(data["page"]["border"], palette),
         },
-        "palette": {
-            key: units.to_colour(value, f"palette.{key}")
-            for key, value in data["palette"].items()
-        },
-        "fonts": resolve_fonts(data["fonts"]),
+        "palette": palette,
+        "fonts": fonts,
         "typography": _resolve_typography(data["typography"]),
         "images": _resolve_images(data["images"]),
         "header": header,
@@ -408,28 +510,113 @@ def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
 
 
 def resolve_fonts(fonts: Dict[str, Any]) -> Dict[str, Any]:
-    def stack(value: Any, field: str, fallback: Optional[List[str]] = None) -> List[str]:
-        if value is None:
-            if fallback is None:
-                raise ConfigError(f"fonts.{field}: no font given and no fallback")
-            return list(fallback)
-        if isinstance(value, str):
-            return [value]
-        if isinstance(value, list) and all(isinstance(item, str) for item in value):
-            if not value:
-                raise ConfigError(f"fonts.{field}: the font stack is empty")
-            return list(value)
-        raise ConfigError(
-            f"fonts.{field}: expected a font name or a list of them, got {value!r}"
-        )
-
-    serif = stack(fonts.get("serif"), "serif", DEFAULT_CONFIG["fonts"]["serif"])
-    sans = stack(fonts.get("sans"), "sans", DEFAULT_CONFIG["fonts"]["sans"])
+    default = DEFAULT_CONFIG["fonts"]
+    serif = _font_stack(fonts.get("serif"), "fonts.serif", default["serif"])
+    sans = _font_stack(fonts.get("sans"), "fonts.sans", default["sans"])
     return {
         "serif": serif,
         "sans": sans,
-        "display": stack(fonts.get("display"), "display", serif),
-        "mono": stack(fonts.get("mono"), "mono", DEFAULT_CONFIG["fonts"]["mono"]),
+        "display": _font_stack(fonts.get("display"), "fonts.display", serif),
+        "mono": _font_stack(fonts.get("mono"), "fonts.mono", default["mono"]),
+    }
+
+
+def _font_stack(value: Any, field: str, fallback: Optional[List[str]] = None) -> List[str]:
+    """One font name or a fallback stack of them, however it was written."""
+    if value is None:
+        if fallback is None:
+            raise ConfigError(f"{field}: no font given and no fallback")
+        return list(fallback)
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        if not value:
+            raise ConfigError(f"{field}: the font stack is empty")
+        return list(value)
+    raise ConfigError(f"{field}: expected a font name or a list of them, got {value!r}")
+
+
+def _resolve_wordmark(
+    wordmark: Dict[str, Any],
+    fonts: Dict[str, Any],
+    palette: Dict[str, str],
+    mark_width: float,
+    band_ink: str,
+) -> Dict[str, Any]:
+    """How the brand name is set when there is no logo file.
+
+    A letterhead with nothing but a name on it is a letterhead, and for a great
+    many people it is the right one — so the name gets the same settings a logo
+    would have had, rather than one hard-coded style.
+
+    The mark prints on two grounds — the header band on page one, bare paper in
+    the running header — so it resolves to two colours. A wordmark left to
+    follow the band would otherwise vanish on page two the moment the band was
+    darkened; one given a colour of its own keeps it in both places.
+    """
+    written = wordmark["color"]
+    return {
+        "font": _font_stack(wordmark["font"], "brand.wordmark.font", fonts["display"]),
+        "size": units.to_share(wordmark["size"], "brand.wordmark.size", mark_width),
+        "weight": _weight(wordmark["weight"], "brand.wordmark.weight"),
+        "color": _colour_or(written, "brand.wordmark.color", band_ink),
+        "running_color": _colour_or(written, "brand.wordmark.color", palette["ink"]),
+        "tracking": units.to_share(
+            wordmark["tracking"], "brand.wordmark.tracking", mark_width, positive=False
+        ),
+        "align": _alignment(wordmark["align"], "brand.wordmark.align"),
+    }
+
+
+def _resolve_tagline(
+    tagline: Any,
+    fonts: Dict[str, Any],
+    mark_width: float,
+    band_muted: str,
+) -> Dict[str, Any]:
+    """The line under the mark, written either as a string or in full.
+
+    It prints on page one only, so unlike the wordmark it needs one colour, and
+    that colour follows the header band.
+    """
+    if isinstance(tagline, str) or tagline is None:
+        written = dict(DEFAULT_CONFIG["brand"]["tagline"])
+        written["text"] = tagline or None
+    elif isinstance(tagline, dict):
+        written = tagline
+    else:
+        raise ConfigError(
+            f"brand.tagline: expected a line of text, got {tagline!r}",
+            hint="Write it as text — tagline: Graphic design, Milan — or as a "
+            "mapping with 'text' and the styling beside it.",
+        )
+
+    text = written.get("text")
+    if text is not None and not isinstance(text, str):
+        text = str(text)
+    if text is not None and not text.strip():
+        text = None
+
+    return {
+        "text": text,
+        "font": _font_stack(written["font"], "brand.tagline.font", fonts["sans"]),
+        "size": units.to_share(written["size"], "brand.tagline.size", mark_width),
+        "weight": _weight(written["weight"], "brand.tagline.weight"),
+        "color": _colour_or(written["color"], "brand.tagline.color", band_muted),
+        "tracking": units.to_share(
+            written["tracking"], "brand.tagline.tracking", mark_width, positive=False
+        ),
+        "gap": units.to_points(written["gap"], "brand.tagline.gap"),
+    }
+
+
+def _resolve_border(border: Dict[str, Any], palette: Dict[str, str]) -> Dict[str, Any]:
+    """The rule around the paper, and which of its four sides are drawn."""
+    return {
+        "width": units.to_points(border["width"], "page.border.width"),
+        "color": _colour_or(border["color"], "page.border.color", palette["accent"]),
+        "inset": units.to_points(border["inset"], "page.border.inset"),
+        "sides": _sides(border["sides"], "page.border.sides"),
     }
 
 
@@ -478,7 +665,9 @@ def _resolve_images(images: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _resolve_header(header: Dict[str, Any], document: "Any") -> Dict[str, Any]:
+def _resolve_header(
+    header: Dict[str, Any], document: "Any", palette: Dict[str, str]
+) -> Dict[str, Any]:
     fields = header["fields"]
     when_empty = str(fields.get("when_empty", "rule")).lower()
     if when_empty not in ("rule", "blank", "hide"):
@@ -528,6 +717,12 @@ def _resolve_header(header: Dict[str, Any], document: "Any") -> Dict[str, Any]:
         "height": units.to_points(header["height"], "header.height"),
         "gap": units.to_points(header["gap"], "header.gap"),
         "rule": units.to_points(header["rule"], "header.rule"),
+        "fill": _colour_or(header["fill"], "header.fill", palette["band"]),
+        "ink": _colour_or(header["ink"], "header.ink", palette["ink"]),
+        "muted": _colour_or(header["muted"], "header.muted", palette["muted"]),
+        "rule_color": _colour_or(
+            header["rule_color"], "header.rule_color", palette["rule"]
+        ),
         "logo": {
             "width": units.to_points(header["logo"]["width"], "header.logo.width"),
             "y": units.to_points(header["logo"]["y"], "header.logo.y"),
@@ -578,7 +773,7 @@ def _resolve_running(
     }
 
 
-def _resolve_footer(footer: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_footer(footer: Dict[str, Any], palette: Dict[str, str]) -> Dict[str, Any]:
     pages = str(footer.get("pages", "last")).lower()
     if pages not in ("last", "all"):
         raise ConfigError(
@@ -596,6 +791,15 @@ def _resolve_footer(footer: Dict[str, Any]) -> Dict[str, Any]:
         "height": units.to_points(footer["height"], "footer.height"),
         "gap": units.to_points(footer["gap"], "footer.gap"),
         "rule": units.to_points(footer["rule"], "footer.rule"),
+        "fill": _colour_or(footer["fill"], "footer.fill", palette["band"]),
+        "ink": _colour_or(footer["ink"], "footer.ink", palette["ink"]),
+        "muted": _colour_or(footer["muted"], "footer.muted", palette["muted"]),
+        "highlight": _colour_or(
+            footer["highlight"], "footer.highlight", palette["highlight"]
+        ),
+        "rule_color": _colour_or(
+            footer["rule_color"], "footer.rule_color", palette["rule"]
+        ),
         "offset": units.to_points(footer["offset"], "footer.offset"),
         "align": _alignment(footer["align"], "footer.align"),
         "title_size": units.to_points(footer["title_size"], "footer.title_size"),
@@ -673,6 +877,47 @@ def _as_text(value: Any) -> Optional[str]:
     return value if isinstance(value, str) else str(value)
 
 
+def _colour_or(value: Any, field: str, fallback: str) -> str:
+    """A colour the user may have left out, in which case the palette decides."""
+    return fallback if value is None else units.to_colour(value, field)
+
+
+def _weight(value: Any, field: str) -> Any:
+    """A font weight, as a number from 100 to 900 or one of Typst's names."""
+    if isinstance(value, bool):
+        raise ConfigError(f"{field}: expected a font weight, got a boolean")
+    if isinstance(value, int):
+        if not 100 <= value <= 900:
+            raise ConfigError(
+                f"{field}: {value!r} is not a font weight",
+                hint="Weights run from 100 (thin) to 900 (black); 400 is regular "
+                "and 700 bold.",
+            )
+        return value
+    if isinstance(value, str) and value.lower() in _FONT_WEIGHTS:
+        return value.lower()
+    raise ConfigError(
+        f"{field}: {value!r} is not a font weight",
+        hint=f"Use a number from 100 to 900, or one of: {', '.join(_FONT_WEIGHTS)}.",
+    )
+
+
+def _sides(value: Any, field: str) -> Dict[str, bool]:
+    """Which sides of a border are drawn, however the choice was written."""
+    names = value if isinstance(value, (list, tuple)) else [value]
+    drawn = {"left": False, "right": False, "top": False, "bottom": False}
+    for name in names:
+        key = str(name).lower()
+        if key not in _BORDER_SIDES:
+            raise ConfigError(
+                f"{field}: {name!r} is not a side",
+                hint=f"Use one of: {', '.join(_BORDER_SIDES)} — or a list of them.",
+            )
+        for side in _BORDER_SIDES[key]:
+            drawn[side] = True
+    return drawn
+
+
 def _alignment(value: Any, field: str) -> str:
     text = str(value).lower()
     if text not in _ALIGNMENTS:
@@ -718,12 +963,15 @@ def _reject_unknown_keys(
             hint = f"Did you mean '{prefix}{suggestion}'?" if suggestion else ""
             raise ConfigError(f"{path}: unknown setting '{where}'", hint=hint)
         # Only descend into sections with a fixed schema. `items`, `columns`
-        # and the palette hold user data, and are validated by their resolvers.
+        # and the palette hold user data, and are validated by their resolvers;
+        # a language map holds translations, and `de` is not a misspelling of
+        # anything — `tagline: { en: ..., de: ... }` replaces the whole section.
         if (
             isinstance(value, dict)
             and isinstance(reference[key], dict)
             and reference[key]
             and key != "palette"
+            and not i18n.is_language_map(value)
         ):
             _reject_unknown_keys(value, reference[key], path, prefix=f"{where}.")
 

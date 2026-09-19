@@ -20,7 +20,7 @@ is real typesetting, not HTML pretending to be a page.
 
 <p align="center">
   <img src="assets/screenshots/01-first-page.png" width="880"
-       alt="The first page of a quotation: a grey band across the top holding the logo on the left and four right-aligned fields — Type, Reference, Date and Valid for — above a justified body with a ruled heading and a price table." />
+       alt="The first page of a quotation: a grey band across the top holding the logo on the left, a tagline under it, and four right-aligned fields opposite — Type, Reference, Date and Valid for — above a justified body with a ruled heading and a price table." />
 </p>
 
 ---
@@ -53,9 +53,11 @@ written as a mapping from language tag to translation. A document picks its
 language in its front matter, and a missing translation falls back rather than
 leaving a hole in the page.
 
-**No logo? No problem.** A brand with no logo file gets its name set as a
-typographic wordmark, measured and scaled to occupy exactly the width the logo
-would have.
+**No logo? No problem.** Nothing here needs an image. A brand with no logo file
+has its name set in type instead, at the size the logo would have had, with a
+face, a weight, a colour and a tagline of its own — a finished letterhead, not a
+fallback. Colour the bands, put a rule down the edge of the paper, and the
+letterhead is yours without a single graphic in it.
 
 <p align="center">
   <img src="assets/screenshots/04-last-page.png" width="880"
@@ -152,9 +154,9 @@ mela-letterhead build              # every document the configuration selects
 mela-letterhead build offer.md     # just this one
 ```
 
-Now make it yours: drop your own logo over `assets/logo.svg`, change
-`brand.name` and `palette.accent`, and replace the footer columns with your real
-details.
+Now make it yours: drop your own logo over `assets/logo.svg` — or delete
+`brand.logo` and let your name be the mark — change `brand.name` and
+`palette.accent`, and replace the footer columns with your real details.
 
 ### The three commands
 
@@ -220,8 +222,45 @@ shape of it rather than the whole reference.
 ```yaml
 brand:
   name: Acme Studio
-  logo: assets/logo.svg   # PNG, JPEG or SVG — delete for a wordmark instead
+  logo: assets/logo.svg   # PNG, JPEG or SVG — delete it and read on
+  tagline: { en: "Surveying · Exampleton", it: "Rilievi · Exampleton" }
 ```
+
+The tagline prints under the mark on page one, under a logo just as under a
+name. The running header is 26mm of paper and gets the mark alone.
+
+#### A letterhead with no image in it
+
+Delete `brand.logo` and the name is set in type at the size the logo would have
+had — which for a freelancer, a studio of one, or anyone whose name *is* the
+brand, is the right letterhead rather than a consolation:
+
+```yaml
+brand:
+  name: Ann Lee
+  tagline: Graphic design · Exampleton
+  wordmark:
+    font: ["Libertinus Serif"]   # defaults to the display stack
+    size: 34pt
+    weight: 300                  # 100 thin … 400 regular … 900 black
+    tracking: 1.2pt              # air between the letters
+    align: left
+```
+
+Every measurement here is really a **share of the width the mark occupies**, so
+the smaller mark in the running header is the same design rather than another
+one. Write `0.17`, `17%` or `34pt` — a length is read as a share of
+`header.logo.width` and behaves the same way.
+
+The one setting to leave alone at first is `color`. Left out, the wordmark
+follows the ink of whatever it is printed on: the header band on page one, the
+bare paper in the running header. Set it, and that one colour is used in both
+places — which is how a white wordmark disappears on page two.
+
+<p align="center">
+  <img src="assets/screenshots/05-wordmark.png" width="880"
+       alt="A letterhead with no logo in it: a deep indigo band across the top of the page carrying the name Ann Lee set large in a light serif, with the line Graphic design, Exampleton beneath it and four right-aligned fields opposite; a violet rule runs down the left margin between the bands, the block quotation in the body stays pale grey, and a matching indigo band holds the studio and bank details at the foot." />
+</p>
 
 ### Colour and type
 
@@ -252,6 +291,48 @@ stack is installed, Typst substitutes silently and your page changes without
 saying so** — `mela-letterhead check` tells you which font you are actually
 getting. To ship fonts with the project, put them in a directory and point
 `fonts.paths` at it.
+
+#### Giving a band real colour
+
+`palette.band` is shared: it fills the header band, the footer band, the block
+quotations and the code. That is right while it stays pale, and wrong the moment
+you want a strong header — write `palette.band: "#2b2440"` and the quotations go
+dark with it. So each band carries its own colours instead, each falling back to
+the palette when you leave it out:
+
+```yaml
+header:
+  fill: "#2b2440"       # the ground
+  ink: "#f3f1fa"        # the fields printed on it
+  muted: "#9d95bd"      # the rule printed where a field has no value
+  rule_color: "#7a63d4" # the line along the lower edge
+
+footer:
+  fill: "#2b2440"
+  ink: "#f3f1fa"
+  muted: "#9d95bd"
+  highlight: "#ffb4a2"  # the row that has to catch the eye
+  rule_color: "#7a63d4"
+```
+
+Set `fill` dark and you want `ink` pale to go with it. The wordmark follows
+`header.ink` on its own.
+
+#### A border around the paper
+
+```yaml
+page:
+  border:
+    width: 2.4pt
+    color: "#4a3f8a"    # defaults to the accent colour
+    inset: 9mm          # from the edge of the paper
+    sides: left         # all · left · right · top · bottom · x · y · none
+```
+
+Nought width — the default — draws nothing. A single line down one side is the
+quietest version and usually the best; `sides` also takes a list, `[left,
+bottom]`. The border is drawn on every page and *under* the bands, so a
+full-bleed band interrupts it rather than being crossed by it.
 
 ### Header fields
 
@@ -516,6 +597,15 @@ read relative to the document that names it — not to `letterhead.yaml`, which 
 where the logo's path is read from. `mela-letterhead build --keep-build` leaves
 every picture the document used in `.letterhead-build/<document>/images/`, which
 is exactly what the compiler was given.
+
+**The block quotations went dark along with the header band.** `palette.band`
+fills four things — both bands, the quotations and the code. Colour the band
+itself with `header.fill` and `footer.fill`, and leave the palette pale.
+
+**The wordmark is invisible on page two.** It was given a `color` of its own,
+and that one colour is used on both grounds — the header band and the bare paper
+of the running header. Delete `brand.wordmark.color` and it follows each of them
+instead.
 
 **A document ends on a page holding nothing but the bands.** The footer reserves
 its room at the end of the body. Trim the text, or raise `page.margin.bottom`.

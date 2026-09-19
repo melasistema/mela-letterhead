@@ -22,11 +22,35 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Three drawings in the scaffold, and a section of the example document that
   prints them: one full-width figure with a caption, and two standing side by
   side at `{width=48%}`.
+- A `brand.wordmark` section. The name a brand with no logo file prints instead
+  now has a face, a size, a weight, a colour, tracking and an alignment of its
+  own, so a letterhead with no image in it is a design rather than a fallback.
+  Its measurements are shares of the width the mark occupies — written as
+  `0.17`, `17%` or `34pt` — which is what keeps the smaller mark in the running
+  header the same design.
+- A `brand.tagline`: a line under the mark on page one, under a logo as much as
+  under a wordmark, written as a plain string or with styling of its own.
+- Colours on each band: `header.fill`, `ink`, `muted` and `rule_color`, and the
+  same for the footer plus `highlight`. Each falls back to the palette, so a
+  band can be given real colour without dragging the block quotations and the
+  code along with it — they are drawn on `palette.band` too.
+- `page.border`: a rule around the paper, on every page, with a width, a
+  colour, an inset and a choice of sides (`all`, `left`, `x`, a list). Drawn
+  under the bands, so a full-bleed band interrupts it. Off by default.
+- `units.to_share`, for a measurement written either as a share or as a length
+  to be divided by a known whole.
 
 ### Changed
 
-- The example document runs to four pages, and the README screenshots were
-  retaken from it.
+- A wordmark left without a colour of its own now follows the ink of whatever
+  it is printed on — the header band on page one, the paper in the running
+  header — instead of always taking `palette.ink`.
+- `_reject_unknown_keys` no longer descends into a language map, so a section
+  with a schema of its own may still be written as `{ en: ..., de: ... }`.
+- The example document runs to four pages and carries a tagline, and the README
+  screenshots were retaken from it.
+- `mela-letterhead init` now says that a logo and a name are both finished
+  letterheads, rather than telling you to supply a logo.
 
 ## [0.1.0] — 2026-09-16
 
