@@ -58,10 +58,12 @@ has its name set in type instead, at the size the logo would have had, with a
 face, a weight, a colour and a tagline of its own — a finished letterhead, not a
 fallback. Colour the bands, put a rule down the edge of the paper, and the
 letterhead is yours without a single graphic in it.
+[How](#2--your-name-is-the-mark).
 
 **Or bring paper of your own.** If a designer has already drawn your sheet,
 point `page.background` at it, turn the bands off, and the tool stops building a
 letterhead and starts setting Markdown onto yours.
+[How](#3--you-already-have-paper).
 
 <p align="center">
   <img src="assets/screenshots/04-last-page.png" width="880"
@@ -110,22 +112,23 @@ Python 3.9 or newer. The only Python dependency is PyYAML.
 
 ---
 
-## Getting started
+## Quick start
 
 ```bash
 mkdir ~/quotations && cd ~/quotations
-mela-letterhead init .
+
+mela-letterhead init .     # write a working letterhead here
+mela-letterhead check      # is everything it needs present?
+mela-letterhead build      # → example-letter.pdf
 ```
 
-That writes a fully commented `letterhead.yaml`, a placeholder `assets/logo.svg`,
-`example-letter.md` — a four-page quotation for a company that does not exist,
-which exercises every part of the layout — and the three drawings it prints.
+Three commands and there is a PDF on the desk. `init` writes a fully commented
+`letterhead.yaml`, a placeholder `assets/logo.svg`, `example-letter.md` — a
+four-page quotation for a company that does not exist, which exercises every
+part of the layout — and the three drawings it prints.
 
-Check that everything it needs is present:
-
-```bash
-mela-letterhead check
-```
+`check` builds nothing, and it is the diagnostic worth running first, because it
+is the only thing that tells you which fonts you actually got:
 
 ```
 Toolchain
@@ -151,24 +154,141 @@ Documents
 Everything checks out.
 ```
 
-Then build:
-
-```bash
-mela-letterhead build              # every document the configuration selects
-mela-letterhead build offer.md     # just this one
-```
-
-Now make it yours: drop your own logo over `assets/logo.svg` — or delete
-`brand.logo` and let your name be the mark — change `brand.name` and
-`palette.accent`, and replace the footer columns with your real details.
-
-### The three commands
-
 | Command | What it does |
 | --- | --- |
 | `init [dir]` | Write a working letterhead into a directory. `--force` overwrites. |
 | `build [files…]` | Build documents into PDFs. `--keep-build` leaves the intermediates. |
 | `check` | Report on the toolchain, configuration, fonts and documents, without building. |
+
+`build` on its own builds every document the configuration selects; name a file
+— `mela-letterhead build offer.md` — to build just that one.
+
+---
+
+## Three ways to start
+
+Now make it yours, and the first decision is which of these three you are. All
+three are finished letterheads. None is a lesser version of another.
+
+### 1 · You have a logo
+
+Drop your own file over `assets/logo.svg` — PNG and JPEG work too — and that
+part is done. The mark prints in the band on page one, and smaller in the
+running header on every page after it.
+
+```yaml
+brand:
+  name: Acme Studio
+  logo: assets/logo.svg
+  tagline: Surveying · Exampleton
+```
+
+### 2 · Your name is the mark
+
+Delete `brand.logo` and the name is set in type, at the size the logo would have
+had. For a freelancer, a studio of one, or anyone whose name *is* the brand,
+that is the right letterhead rather than a consolation prize:
+
+```yaml
+brand:
+  name: Ann Lee
+  tagline: Graphic design · Exampleton
+  wordmark:
+    size: 34pt
+    weight: 300        # 100 thin … 400 regular … 900 black
+    tracking: 1.2pt    # air between the letters
+```
+
+<p align="center">
+  <img src="assets/screenshots/05-wordmark.png" width="880"
+       alt="A letterhead with no logo in it: a deep indigo band across the top of the page carrying the name Ann Lee set large in a light serif, with the line Graphic design, Exampleton beneath it and four right-aligned fields opposite; a violet rule runs down the left margin between the bands, the block quotation in the body stays pale grey, and a matching indigo band holds the studio and bank details at the foot." />
+</p>
+
+The rest of the wordmark's settings are under
+[a letterhead with no image in it](#a-letterhead-with-no-image-in-it).
+
+### 3 · You already have paper
+
+If a designer has drawn your sheet — or your printer has, and you have the
+file — this turns the tool around. Point `page.background` at the artwork,
+switch the tool's own furniture off, and open the margins until the body clears
+your design:
+
+```yaml
+page:
+  background:
+    image: assets/sheet.png   # PNG or JPEG at 300 dpi — Typst places no PDF
+    pages: all
+  margin:
+    x: 22mm
+    top: 82mm
+    bottom: 38mm
+
+header:
+  show: false
+footer:
+  show: false
+running:
+  show: false
+```
+
+<p align="center">
+  <img src="assets/screenshots/06-designed-sheet.png" width="880"
+       alt="A quotation set on a sheet designed elsewhere: a deep teal band across the top carrying the wordmark ATELIER NORD and two interlocking circles in mint and amber, an angled lower edge to the band, a thin amber rule down the left margin, and a matching teal strip at the foot carrying the address and VAT number. The document's own heading and text sit in the white space between them; none of it comes from the tool." />
+</p>
+
+Nothing on that page comes from the tool but the type. Two things are worth
+knowing before you export the artwork, and both are under
+[Markdown onto paper you already have](#markdown-onto-paper-you-already-have).
+
+---
+
+## Make it yours
+
+Whichever of the three you are, these are the settings people actually change,
+about in this order:
+
+1. **The brand.** `brand.name` and `brand.tagline` — what prints in the band.
+2. **The accent colour.** `palette.accent` carries the headings, the list
+   markers and the links, and it is most of what makes the paper look like
+   yours.
+3. **The footer.** `footer.columns` — your address, telephone, VAT number, bank
+   details. Two columns give you halves, three give you thirds.
+4. **The header fields.** `header.fields.items` — each one names a key in a
+   document's front matter, so you choose what page one asks for.
+5. **The language.** `language:` near the top of the file, and
+   `documents.date_format` beneath it.
+6. **The fonts,** last — and run `mela-letterhead check` afterwards, because a
+   missing family is substituted silently.
+
+Everything else has a default, so a real letterhead can be about this short:
+
+```yaml
+brand:
+  name: Ann Lee
+  tagline: Graphic design · Exampleton
+
+language: en
+
+palette:
+  accent: "#2f6f4f"
+
+footer:
+  columns:
+    - title: Ann Lee
+      rows:
+        - 12 Example Street · 00100 Exampleton
+        - ["Tel.", "+00 000 000 0000"]
+        - hello@annlee.example
+    - title: Bank details
+      rows:
+        - label: "IBAN:"
+          value: IT00 X000 0000 0000 0000 0000 000
+          style: highlight
+```
+
+Then delete `example-letter.md`, write your own, and build. The rest of this
+page is reference: you need it on the third day, not the first.
 
 ---
 
@@ -215,11 +335,11 @@ snake_case are the same key, so `valid-until` and `valid_until` both work.
 
 ---
 
-## Describing the letterhead
+## The letterhead, setting by setting
 
-`letterhead.yaml` is commented line by line, and every setting has a default, so
-a working configuration can be as short as a brand name. What follows is the
-shape of it rather than the whole reference.
+`letterhead.yaml` is commented line by line, so the file itself is the reference.
+What follows is the shape of it, and the handful of settings that are easier to
+get wrong than to guess.
 
 ### The brand
 
@@ -260,11 +380,6 @@ The one setting to leave alone at first is `color`. Left out, the wordmark
 follows the ink of whatever it is printed on: the header band on page one, the
 bare paper in the running header. Set it, and that one colour is used in both
 places — which is how a white wordmark disappears on page two.
-
-<p align="center">
-  <img src="assets/screenshots/05-wordmark.png" width="880"
-       alt="A letterhead with no logo in it: a deep indigo band across the top of the page carrying the name Ann Lee set large in a light serif, with the line Graphic design, Exampleton beneath it and four right-aligned fields opposite; a violet rule runs down the left margin between the bands, the block quotation in the body stays pale grey, and a matching indigo band holds the studio and bank details at the foot." />
-</p>
 
 ### Colour and type
 
@@ -340,10 +455,8 @@ full-bleed band interrupts it rather than being crossed by it.
 
 #### Markdown onto paper you already have
 
-Everything above builds a letterhead out of settings. This turns the tool
-around. If a designer has already drawn your sheet — or your printer has, and
-you have the file — point `page.background` at it and switch the tool's own
-furniture off:
+The whole of it, with the two settings the
+[third way to start](#3--you-already-have-paper) left out:
 
 ```yaml
 page:
@@ -352,23 +465,11 @@ page:
     fit: cover      # or contain
     pages: all      # first · rest · all
     veil: 0         # white laid over it, 0 to 1
-  margin:
-    x: 22mm
-    top: 82mm       # clear your own artwork
-    bottom: 38mm
-
-header:
-  show: false
-footer:
-  show: false
-running:
-  show: false
 ```
 
-<p align="center">
-  <img src="assets/screenshots/06-designed-sheet.png" width="880"
-       alt="A quotation set on a sheet designed elsewhere: a deep teal band across the top carrying the wordmark ATELIER NORD and two interlocking circles in mint and amber, an angled lower edge to the band, a thin amber rule down the left margin, and a matching teal strip at the foot carrying the address and VAT number. The document's own heading and text sit in the white space between them; none of it comes from the tool." />
-</p>
+`pages: first` prints the sheet on page one alone, which is what a designed
+first page and a plainer continuation sheet want; `rest` is the other half of
+that pair, and `all` puts it on every page.
 
 The background is read relative to `letterhead.yaml`, like the logo and unlike a
 picture in the body — it belongs to the paper, not to anything written on it.
