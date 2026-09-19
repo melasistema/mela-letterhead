@@ -8,7 +8,7 @@ whatever language each document declares.
 
 # Kept in step with pyproject.toml by hand; the release workflow refuses a tag
 # that disagrees with either of them.
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Luca Visciola (Melasistema)"
 __license__ = "MIT"
 

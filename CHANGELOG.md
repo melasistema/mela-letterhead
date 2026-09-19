@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-09-19
+
 ### Added
 
 - Pictures in the body. `![caption](plate.svg)` prints PNG, JPEG, GIF, SVG and
@@ -103,5 +105,6 @@ First release.
 - Configuration errors that name the offending setting and suggest the nearest
   valid one.
 
-[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/melasistema/mela-letterhead/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/melasistema/mela-letterhead/releases/tag/v0.1.0
