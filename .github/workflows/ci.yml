@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  # `git log v0.1.0..HEAD --oneline` is what a release is written from, so a
+  # `git log <last tag>..HEAD --oneline` is what a release is written from, so a
   # subject that does not say what kind of change it is costs somebody a dig
   # through the diff later. This runs the same script the commit-msg hook does,
   # for the clones that never enabled it.

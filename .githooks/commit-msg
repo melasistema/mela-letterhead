@@ -4,7 +4,7 @@
 #
 # Nothing reads these automatically — the version is bumped by hand and the
 # changelog is written in prose. What the convention buys is the other
-# direction: at release time `git log v0.1.0..HEAD --oneline` is the list of
+# direction: at release time `git log <last tag>..HEAD --oneline` is the list of
 # what has to be accounted for, sorted by type into the sections it is going to
 # be written under. A subject that does not say what kind of change it is makes
 # that list something to reconstruct rather than read.
