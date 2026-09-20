@@ -160,3 +160,25 @@ class TestPageSize:
         with pytest.raises(ConfigError) as caught:
             units.page_size("a4paper", "page.size")
         assert "letter" in caught.value.hint
+
+    def test_unknown_name_says_where_a_custom_pair_goes(self):
+        # Telling a reader to "give a width and height instead" without saying
+        # where sends them to a `width:` beside `size:`, which is refused as an
+        # unknown setting somewhere else entirely.
+        with pytest.raises(ConfigError) as caught:
+            units.page_size("a4paper", "page.size")
+        assert "  page:\n    size:\n      width: 210mm" in caught.value.hint
+        assert "      height: 297mm" in caught.value.hint
+
+    def test_the_hint_nests_under_the_setting_that_failed(self):
+        with pytest.raises(ConfigError) as caught:
+            units.page_size("a4paper", "letterhead.page.size")
+        assert "  letterhead:\n    page:\n      size:\n        width:" in caught.value.hint
+
+    def test_a_size_that_is_neither_a_name_nor_a_mapping_is_hinted_too(self):
+        # `size: 210` is the same misunderstanding one branch earlier, and used
+        # to be the one error here that offered nothing.
+        with pytest.raises(ConfigError) as caught:
+            units.page_size(210, "page.size")
+        assert "210" in caught.value.message
+        assert "width: 210mm" in caught.value.hint

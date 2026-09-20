@@ -6,6 +6,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- An unknown `page.size` now says *where* a custom size is written. The hint
+  ended "or give an explicit 'width' and 'height' instead", which is true and
+  leaves out the only part a reader could not work out for themselves: the pair
+  replaces the name, under the same key. The natural guess — a `width:` beside
+  `size:` — is refused somewhere else entirely, as an unknown setting, so the
+  hint sent people from one error to a second one. It now prints the shape,
+  nested under whatever setting failed. A size that is neither a name nor a
+  mapping, `size: 210`, is the same misunderstanding one branch earlier and was
+  the one error here that offered nothing; it gets the same hint, and now
+  quotes what was written.
+
+### Documentation
+
+- A section on which documents get built. `documents.include`, `exclude`,
+  `source` and `output` had no prose anywhere outside the comments in
+  `letterhead.yaml` — including the two traps that cost a person an afternoon:
+  `exclude` *replaces* the default list rather than adding to it, so excluding
+  a drafts directory quietly starts building `README.pdf`; and the output is
+  flat, so with a recursive `**/*.md` pattern `offers/one.md` and
+  `invoices/one.md` both write `one.pdf` and the second silently overwrites the
+  first. Both now have an entry under "When something looks wrong" as well.
+- A note that a project wants one `--watch` and not two. A document's build
+  directory is named after the document rather than the process, so two watches
+  stage the same document through the same directory; the resulting failure
+  reads as a build reporting something from the run happening beside it.
+
 ## [0.5.1] — 2026-09-20
 
 ### Fixed

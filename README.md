@@ -208,6 +208,15 @@ That goes for `letterhead.yaml` too — half-typed YAML costs an error and the
 previous configuration is kept until the file reads again. Ctrl-C stops it, and
 stopping it on purpose is not a failure: it exits 0.
 
+> **One watch per project.** A document's build directory is named after the
+> document, not after the process building it, so two watches on the same
+> project stage two builds of the same document through the same directory and
+> write the same PDF. Neither knows about the other, and the failure that comes
+> of it does not look like one: a build reporting something that belongs to the
+> run happening beside it. Two *different* projects are fine — the directory is
+> under each project's own `build_dir`. If you are not sure one is still
+> running, it prints a line per rebuild; a silent terminal is a stopped one.
+
 ---
 
 ## Three ways to start
@@ -380,6 +389,52 @@ snake_case are the same key, so `valid-until` and `valid_until` both work.
 > **One YAML trap worth knowing.** An unquoted `date: 2026-09-14` is read as a
 > date, not as text, and gets printed through `documents.date_format`. Quote it
 > — `date: "14.09.2026"` — to have it appear exactly as you typed it.
+
+---
+
+## Which documents get built
+
+`build`, `check` and `--watch` all ask one question, and get one answer: which
+files under `documents.source` match `documents.include` and survive
+`documents.exclude`.
+
+```yaml
+documents:
+  source: .                 # where to look for documents
+  output: .                 # where the PDFs land
+  include: ["*.md"]
+  exclude: ["README.md", "CHANGELOG.md", "LICENSE.md"]
+```
+
+Both paths are read relative to `letterhead.yaml`, and `output` is created if it
+is not there. Patterns are matched against the path *relative to `source`*, so a
+pattern may address a subdirectory as easily as a name — `offers/*.md` — and
+`**/*.md` searches the whole tree. `mela-letterhead check` prints the list it
+arrived at, which is the quickest way to find out whether a pattern does what
+you think.
+
+Naming files on the command line — `mela-letterhead build offer.md` — skips the
+patterns entirely and builds exactly what you named.
+
+> **`exclude` replaces the default list; it does not add to it.** Lists replace
+> rather than extend throughout `letterhead.yaml`. So `exclude: ["drafts/**"]`
+> also stops excluding `README.md` — a Markdown file in the source directory,
+> which will duly be built into `README.pdf`. Repeat the three defaults
+> alongside whatever you add.
+
+> **The output is flat, and identical names collide.** A PDF is named after its
+> source file, not its path, and lands directly in `output`. With a recursive
+> `include`, `offers/one.md` and `invoices/one.md` are two documents that both
+> write `one.pdf` — the second overwrites the first, and the report says
+> `✓ one.pdf` twice without remarking on it. Give one of them an `output:` key
+> in its front matter, or keep names unique across the tree.
+
+The build directory holds no documents, whatever the patterns say. That is not
+a pattern you can see in `exclude` but a rule in the tool, because `build_dir`
+is a setting and a pattern could not follow you if you moved it. It matters
+because a build that *fails* leaves its rewritten intermediate on the disk, and
+a recursive `**/*.md` would otherwise find that copy and build it as though you
+had written it.
 
 ---
 
@@ -1023,6 +1078,16 @@ Error: letterhead.yaml: unknown setting 'palete'
 
   Did you mean 'palette'?
 ```
+
+**Something got built that is not a document — `README.pdf`, say.** Setting
+`documents.exclude` replaced the default list rather than adding to it, so the
+three files excluded for you no longer are. See [Which documents get
+built](#which-documents-get-built).
+
+**Two documents, one PDF.** They share a filename. The PDF is named after the
+source file and not its path, so `offers/one.md` and `invoices/one.md` both
+write `one.pdf` into the output directory. Rename one, or give it an `output:`
+key in its front matter.
 
 **A picture is refused, or lands somewhere you did not expect.** Its path is
 read relative to the document that names it — not to `letterhead.yaml`, which is

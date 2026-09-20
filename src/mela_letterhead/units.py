@@ -259,6 +259,25 @@ def to_colour(value: object, field: str) -> str:
     return value
 
 
+def _custom_size_hint(field: str) -> str:
+    """Show where a width and height are written, for the setting that failed.
+
+    The pair replaces the *name*, under the same key — which is the half a
+    reader told only to "give a width and height instead" has to guess, and
+    the natural guess is a `width:` beside `size:`, refused as an unknown
+    setting by a different part of the program. Built from ``field`` rather
+    than written out, so the shape shown is always the one that failed.
+    """
+    lines, indent = [], ""
+    for part in field.split("."):
+        lines.append(f"{indent}{part}:")
+        indent += "  "
+    lines += [f"{indent}width: 210mm", f"{indent}height: 297mm"]
+    return "A width and height replace the name, under the same setting:\n" + "\n".join(
+        f"  {line}" for line in lines
+    )
+
+
 def page_size(value: object, field: str) -> tuple[float, float]:
     """Return ``(width, height)`` in points for a named or explicit page size.
 
@@ -278,7 +297,10 @@ def page_size(value: object, field: str) -> tuple[float, float]:
         )
 
     if not isinstance(value, str):
-        raise ConfigError(f"{field}: expected a page size name or a width/height pair")
+        raise ConfigError(
+            f"{field}: expected a page size name or a width/height pair, got {value!r}",
+            hint=_custom_size_hint(field),
+        )
 
     name = value.strip().lower()
     landscape = False
@@ -291,8 +313,8 @@ def page_size(value: object, field: str) -> tuple[float, float]:
         known = ", ".join(sorted(_PAGE_SIZES_MM))
         raise ConfigError(
             f"{field}: unknown page size {value!r}",
-            hint=f"Known sizes: {known}. Append '-landscape' to rotate one, or give "
-            "an explicit 'width' and 'height' instead.",
+            hint=f"Known sizes: {known}. Append '-landscape' to rotate one.\n"
+            + _custom_size_hint(field),
         )
 
     width_mm, height_mm = _PAGE_SIZES_MM[name]
