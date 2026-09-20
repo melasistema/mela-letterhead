@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The command runs on Windows. `check` printed a tick, Windows hands a
+  redirected command the ANSI code page rather than UTF-8, and cp1252 has no
+  tick in it — so the whole command ended in a `UnicodeEncodeError` on the
+  first line of its own report, before it had said anything about the
+  toolchain. The tick, the cross and the arrow are now chosen to fit the stream
+  being written to, falling back to `+`, `x` and `->` at the same width, and
+  anything else the stream cannot take — a brand name, a path, a font family —
+  degrades to a question mark instead of ending the run. This is what the
+  Windows job added in 0.3.0 was for, and it found it on its first outing.
+
 ## [0.3.0] — 2026-09-20
 
 ### Added

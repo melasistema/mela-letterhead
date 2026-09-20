@@ -96,6 +96,14 @@ belongs in `i18n._RESERVED_KEYS`.
   examples, tests, screenshots or documentation.
 - **Code, comments, tests and documentation are in English.** Only the text
   that appears on a user's letterhead is translated.
+- **Not every character the command prints can be printed.** Windows gives a
+  redirected command the ANSI code page rather than UTF-8, and there is no tick
+  in cp1252 — printing one used to end `check` in a `UnicodeEncodeError` on the
+  first line of its own report. A new mark goes through `cli._mark`, which
+  takes the spelling the stream can carry and an ASCII one of the same width;
+  plain prose stays inside Latin-1, where an em dash and an ellipsis are safe.
+  The Windows CI job deliberately does not set `PYTHONUTF8`, so it keeps
+  testing the code page rather than stepping around it.
 
 ## The schema version
 

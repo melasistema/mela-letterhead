@@ -172,6 +172,69 @@ class TestColour:
         assert "\033[" in out
 
 
+class Stream:
+    """`sys.stdout` with an encoding of somebody else's choosing.
+
+    Everything written still reaches the stream underneath, so `capsys` reads
+    the output back as it always does; only the answer to `.encoding` changes.
+    """
+
+    def __init__(self, wrapped, encoding):
+        self._wrapped = wrapped
+        self.encoding = encoding
+
+    def write(self, text):
+        return self._wrapped.write(text)
+
+    def flush(self):
+        self._wrapped.flush()
+
+    def isatty(self):
+        return False
+
+
+class TestMarksFitTheStream:
+    """A tick is not printable everywhere, and `check` prints one per line.
+
+    Windows gives a redirected command the ANSI code page rather than UTF-8,
+    and cp1252 has no U+2713 in it: the whole command died in a
+    `UnicodeEncodeError` on the first line of its own report.
+    """
+
+    @staticmethod
+    def as_though(monkeypatch, encoding):
+        monkeypatch.setattr(cli.sys, "stdout", Stream(cli.sys.stdout, encoding))
+
+    def test_the_tick_and_the_cross_survive_a_code_page(self, monkeypatch):
+        self.as_though(monkeypatch, "cp1252")
+        for mark in (cli._tick(), cli._cross()):
+            mark.encode("cp1252")  # the assertion is that this does not raise
+
+    def test_a_stream_that_can_take_them_gets_them(self, monkeypatch):
+        self.as_though(monkeypatch, "utf-8")
+        assert "✓" in cli._tick()
+        assert "✗" in cli._cross()
+
+    def test_the_marks_keep_their_width_either_way(self, monkeypatch):
+        monkeypatch.setenv("NO_COLOR", "1")
+        widths = set()
+        for encoding in ("utf-8", "cp1252"):
+            self.as_though(monkeypatch, encoding)
+            widths.add((len(cli._tick()), len(cli._cross())))
+        assert widths == {(1, 1)}
+
+    def test_a_stream_with_no_encoding_at_all_falls_back(self, monkeypatch):
+        # `sys.stdout` is whatever the caller put there, and not all of them
+        # are text streams with an encoding to ask about.
+        self.as_though(monkeypatch, None)
+        assert cli._mark("✓", "+") == "+"
+
+    def test_the_whole_report_is_printable_on_a_code_page(self, tmp_path, capsys, monkeypatch):
+        self.as_though(monkeypatch, "cp1252")
+        _, out = check(tmp_path, capsys)
+        out.encode("cp1252")  # as the Windows console would have to
+
+
 class TestCheckFindsTheFilesTheLetterheadNames:
     """The logo and the background are the two pictures `check` looks for.
 

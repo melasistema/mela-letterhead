@@ -66,6 +66,59 @@ def _yellow(text: str) -> str:
     return _paint(text, "33")
 
 
+def _fits(text: str) -> bool:
+    """Whether the stream being written to can carry these characters.
+
+    Windows hands a redirected command the ANSI code page rather than UTF-8,
+    and there is no tick in it: a `check` on Windows CI ended in a
+    `UnicodeEncodeError` on its first line of output, halfway through its own
+    report. Asked per line, for the same reason `_use_colour` is.
+    """
+    encoding = getattr(sys.stdout, "encoding", None)
+    if not encoding:
+        return False
+    try:
+        text.encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        return False
+    return True
+
+
+def _mark(preferred: str, plain: str) -> str:
+    """One of two spellings of the same mark, whichever the stream can print.
+
+    The tick and the cross keep their width between the two, so the columns
+    after them line up on a code page as they do in UTF-8.
+    """
+    return preferred if _fits(preferred) else plain
+
+
+def _tick() -> str:
+    return _green(_mark("✓", "+"))
+
+
+def _cross() -> str:
+    return _red(_mark("✗", "x"))
+
+
+def _harden_output() -> None:
+    """Let a character the stream cannot print degrade rather than end the run.
+
+    The marks above are chosen to fit, but a brand name, a path or a font
+    family is whatever the user has, and on Windows the stream is a code page
+    holding a couple of hundred characters. One outside it should cost a
+    question mark, not a traceback over a half-written report.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:  # a stream something else has substituted
+            continue
+        try:
+            reconfigure(errors="replace")
+        except (ValueError, OSError):  # detached, or closed under us
+            pass
+
+
 # ---------------------------------------------------------------------------
 # commands
 # ---------------------------------------------------------------------------
@@ -132,7 +185,7 @@ def command_build(args: argparse.Namespace) -> int:
     for result in results:
         size = _human_size(result.pdf)
         print(
-            f"  {_green('✓')}  {_relative(result.pdf)}  "
+            f"  {_tick()}  {_relative(result.pdf)}  "
             f"{_dim(f'[{result.language}, {size}]')}"
         )
 
@@ -156,18 +209,18 @@ def command_check(args: argparse.Namespace) -> int:
         tool = toolchain.find(name)
         if not tool.available:
             problems += 1
-            print(f"  {_red('✗')}  {name} not found on PATH")
+            print(f"  {_cross()}  {name} not found on PATH")
         elif toolchain.too_old(tool):
             problems += 1
             minimum = toolchain.MINIMUM[name]
             print(
-                f"  {_red('✗')}  {name} {tool.version}  "
+                f"  {_cross()}  {name} {tool.version}  "
                 f"{_dim(f'(too old — this needs {minimum} or newer)')}"
             )
         else:
             developed = toolchain.DEVELOPED_WITH[name]
             note = _dim(f"(developed against {developed})")
-            print(f"  {_green('✓')}  {name} {tool.version or '?'}  {note}")
+            print(f"  {_tick()}  {name} {tool.version or '?'}  {note}")
 
     print()
     try:
@@ -177,7 +230,7 @@ def command_check(args: argparse.Namespace) -> int:
         return 1
 
     print(_bold("Configuration"))
-    print(f"  {_green('✓')}  {_relative(config.path)} reads cleanly")
+    print(f"  {_tick()}  {_relative(config.path)} reads cleanly")
     brand = config.data["brand"].get("name") or _dim("(no brand name set)")
     print(f"     brand          {brand}")
     print(f"     language       {config.default_language}")
@@ -192,7 +245,7 @@ def command_check(args: argparse.Namespace) -> int:
             print(f"     logo           {_relative(path)}")
         else:
             problems += 1
-            print(f"  {_red('✗')}  logo not found: {_relative(path)}")
+            print(f"  {_cross()}  logo not found: {_relative(path)}")
     else:
         print(f"     logo           {_dim('none — the brand name is set as a wordmark')}")
 
@@ -203,7 +256,7 @@ def command_check(args: argparse.Namespace) -> int:
             print(f"     background     {_relative(path)}")
         else:
             problems += 1
-            print(f"  {_red('✗')}  background not found: {_relative(path)}")
+            print(f"  {_cross()}  background not found: {_relative(path)}")
 
     languages = i18n.available_locales(config.locales_dir)
     print(f"     locale packs   {', '.join(languages)}")
@@ -222,7 +275,7 @@ def command_check(args: argparse.Namespace) -> int:
         problems += 1
         _problem(error.message, error.hint)
     else:
-        print(f"  {_green('✓')}  every setting resolves")
+        print(f"  {_tick()}  every setting resolves")
 
     print()
     print(_bold("Fonts"))
@@ -238,7 +291,7 @@ def command_check(args: argparse.Namespace) -> int:
             )
             if installed:
                 extra = _dim(f"(of {len(stack)} in the stack)") if len(stack) > 1 else ""
-                print(f"  {_green('✓')}  {role:<8} {installed} {extra}")
+                print(f"  {_tick()}  {role:<8} {installed} {extra}")
             else:
                 print(f"  {_yellow('!')}  {role:<8} none of {', '.join(stack)} is installed")
         if missing:
@@ -266,7 +319,7 @@ def command_check(args: argparse.Namespace) -> int:
     except LetterheadError as error:
         problems += 1
         paths = []
-        print(f"  {_red('✗')}  {error.message}")
+        print(f"  {_cross()}  {error.message}")
 
     if not paths:
         print(_dim("  none found"))
@@ -291,9 +344,12 @@ def command_check(args: argparse.Namespace) -> int:
                 _problem(f"{_relative(path)}: {error.message}", error.hint)
                 continue
 
+        # Hoisted because the nested f-string below cannot carry a quoted
+        # argument of its own.
+        arrow = _mark("→", "->")
         print(
-            f"  {_green('✓')}  {_relative(path)}  "
-            f"{_dim(f'[{language}] → {document.output_name}.pdf')}"
+            f"  {_tick()}  {_relative(path)}  "
+            f"{_dim(f'[{language}] {arrow} {document.output_name}.pdf')}"
         )
 
     print()
@@ -352,7 +408,7 @@ def _problem(message: str, hint: str = "") -> None:
     colours, how a footer row is written — so it is printed here rather than
     kept for the one error that stops the command.
     """
-    print(f"  {_red('✗')}  {message}")
+    print(f"  {_cross()}  {message}")
     for line in hint.splitlines():
         print(f"     {_dim(line)}")
 
@@ -424,6 +480,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    _harden_output()
     parser = build_parser()
     args = parser.parse_args(argv)
 
