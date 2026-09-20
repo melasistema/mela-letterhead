@@ -25,7 +25,7 @@ Each transformation can be switched off in ``letterhead.yaml``.
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Sequence
+from typing import Dict, List, Optional, Sequence
 
 #: A table separator row: ``|---|:--:|---:|``
 _SEPARATOR_RE = re.compile(r"^\s*\|(?:\s*:?-{2,}:?\s*\|)+\s*$")
@@ -52,7 +52,7 @@ _MINIMUM = 9
 _DAMPING = 0.7
 
 
-def prepare(text: str, options: Dict[str, object] = None) -> str:
+def prepare(text: str, options: Optional[Dict[str, object]] = None) -> str:
     """Apply the enabled transformations to a Markdown body."""
     options = options or {}
     rewrite_tables = bool(options.get("rewrite_table_widths", True))

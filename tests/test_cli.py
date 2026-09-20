@@ -10,7 +10,7 @@ import shutil
 
 import pytest
 
-from mela_letterhead import cli
+from mela_letterhead import __version__, cli
 
 needs_toolchain = pytest.mark.skipif(
     shutil.which("pandoc") is None or shutil.which("typst") is None,
@@ -172,10 +172,113 @@ class TestColour:
         assert "\033[" in out
 
 
+class TestCheckFindsTheFilesTheLetterheadNames:
+    """The logo and the background are the two pictures `check` looks for.
+
+    Both are read relative to `letterhead.yaml` rather than to the document,
+    and both may be written per language — so these go through the same
+    resolution a build would, and a missing one is a problem rather than a
+    stack trace at compile time.
+    """
+
+    def test_a_logo_that_is_not_there_is_a_problem(self, tmp_path, capsys):
+        config = SOUND.replace("  name: Acme Studio\n", "  name: Acme Studio\n  logo: mark.svg\n")
+        status, out = check(tmp_path, capsys, config=config)
+        assert status == 1
+        assert "logo not found" in out
+        assert "mark.svg" in out
+
+    def test_a_background_that_is_not_there_is_a_problem(self, tmp_path, capsys):
+        config = SOUND + "page:\n  background:\n    image: sheet.png\n"
+        status, out = check(tmp_path, capsys, config=config)
+        assert status == 1
+        assert "background not found" in out
+        assert "sheet.png" in out
+
+    @needs_toolchain
+    def test_a_letterhead_with_no_logo_says_so_rather_than_failing(self, tmp_path, capsys):
+        # A brand name with no mark is a finished letterhead, not a fallback.
+        status, out = check(tmp_path, capsys)
+        assert status == 0
+        assert "wordmark" in out
+
+
+class TestCheckWithNoDocuments:
+    @needs_toolchain
+    def test_matching_nothing_is_reported_but_is_not_a_problem(self, tmp_path, capsys):
+        # An empty project is a project somebody has just scaffolded. It has
+        # nothing to build and nothing wrong with it.
+        project = make_project(tmp_path, documents=())
+        status = cli.main(["check", "-c", str(project / "letterhead.yaml")])
+        out = capsys.readouterr().out
+        assert status == 0
+        assert "none found" in out
+
+
+class TestInit:
+    def test_every_file_lands(self, tmp_path):
+        assert cli.main(["init", str(tmp_path)]) == 0
+        assert (tmp_path / "letterhead.yaml").is_file()
+        assert (tmp_path / "example-letter.md").is_file()
+        assert (tmp_path / "assets" / "logo.svg").is_file()
+        for plate in cli.SCAFFOLD_PLATES:
+            assert (tmp_path / "assets" / plate).is_file()
+
+    def test_the_scaffold_it_writes_is_the_one_that_ships(self, tmp_path):
+        # Not a copy kept in the tests: what `init` writes has to be what is
+        # in the package, or the wheel can ship without its plates and no test
+        # would notice.
+        cli.main(["init", str(tmp_path)])
+        written = (tmp_path / "letterhead.yaml").read_bytes()
+        assert written == (cli.SCAFFOLD / "letterhead.yaml").read_bytes()
+
+    def test_it_will_not_overwrite_what_is_already_there(self, tmp_path, capsys):
+        (tmp_path / "letterhead.yaml").write_text("mine\n", encoding="utf-8")
+        status = cli.main(["init", str(tmp_path)])
+        out = capsys.readouterr().out
+        assert status == 1
+        assert "already exist" in out
+        # Nothing written at all, not even the files that were not in the way.
+        assert (tmp_path / "letterhead.yaml").read_text(encoding="utf-8") == "mine\n"
+        assert not (tmp_path / "example-letter.md").exists()
+
+    def test_force_overwrites(self, tmp_path):
+        (tmp_path / "letterhead.yaml").write_text("mine\n", encoding="utf-8")
+        assert cli.main(["init", str(tmp_path), "--force"]) == 0
+        assert "mine" not in (tmp_path / "letterhead.yaml").read_text(encoding="utf-8")
+        assert (tmp_path / "example-letter.md").is_file()
+
+    def test_a_directory_that_does_not_exist_yet_is_made(self, tmp_path):
+        assert cli.main(["init", str(tmp_path / "new" / "deeper")]) == 0
+        assert (tmp_path / "new" / "deeper" / "letterhead.yaml").is_file()
+
+
+class TestBuild:
+    def test_a_document_that_is_not_there_is_reported_not_raised(self, tmp_path, capsys):
+        project = make_project(tmp_path)
+        status = cli.main(
+            ["build", str(project / "nope.md"), "-c", str(project / "letterhead.yaml")]
+        )
+        assert status == 1
+        # On stderr, because this one stops the command rather than being a
+        # line in a report.
+        assert "nope.md" in capsys.readouterr().err
+
+    def test_a_configuration_that_is_not_there_is_reported_not_raised(self, tmp_path, capsys):
+        assert cli.main(["build", "-c", str(tmp_path / "nope.yaml")]) == 1
+        assert capsys.readouterr().err
+
+
 class TestParser:
     def test_no_command_prints_help(self, capsys):
         assert cli.main([]) == 0
         assert "mela-letterhead" in capsys.readouterr().out
+
+    def test_version_is_printed_and_nothing_is_built(self, capsys):
+        with pytest.raises(SystemExit) as caught:
+            cli.main(["--version"])
+        assert caught.value.code == 0
+        assert __version__ in capsys.readouterr().out
 
     def test_a_configuration_that_is_not_there_is_reported_not_raised(self, tmp_path):
         assert cli.main(["check", "-c", str(tmp_path / "nope.yaml")]) == 1

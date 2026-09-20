@@ -6,6 +6,43 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Mela Letterhead is on PyPI.** `pipx install mela-letterhead` is the whole
+  of it — the tool has been reachable only by cloning the repository until now,
+  which is a reasonable way to work on it and an unreasonable way to use it.
+  Releases are published by the tag that cuts them, with no API token anywhere:
+  PyPI verifies the identity GitHub mints for the workflow. The same job checks
+  that the scaffold and the locale packs travelled inside both artefacts, since
+  a wheel that installs without its plates gives an `init` that writes a broken
+  letterhead.
+- macOS and Windows are tested on every change, alongside the Linux job that
+  was there before. Nothing in this release was found by it, which is the point
+  of having it before something is.
+- `CONTRIBUTING.md` and `SECURITY.md`, and templates for the two kinds of
+  issue. The contributing notes carry the policy for the `version:` key in
+  `letterhead.yaml`, which has been 1 since the beginning with no account of
+  what would make it 2: a change that would *misread* an existing file, shipped
+  with a migration, never a release that can only say the file is too old.
+- `markdown.extra_args` is documented, and with it the one thing in
+  `letterhead.yaml` that is not a description of a page: Pandoc's
+  `--lua-filter`, `--filter` and `-F` name programs and Pandoc runs them, so a
+  letterhead you did not write is a script you did not write.
+
+### Changed
+
+- The project lints with ruff and type-checks with mypy under `--strict`, both
+  on every change. Six things came out of the first strict run and are fixed
+  here; none of them could reach a page, which is why they had lasted.
+  `ruff format` is deliberately not run — the prose in this codebase is wrapped
+  by hand, and filling it to the column would take the shape out of it.
+- Coverage is measured and floored at 88%, a little under the 91% the suite
+  reaches with Pandoc and Typst installed. Most of what was added to get there
+  is `mela-letterhead init` and the branches of `check` that report a file it
+  cannot find, neither of which any test had exercised.
+- The README leads with installing the tool rather than cloning it. The clone
+  is still documented, as what it is: how to work on it.
+
 ## [0.2.2] — 2026-09-20
 
 ### Added

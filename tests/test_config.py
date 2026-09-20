@@ -148,7 +148,8 @@ class TestResolve:
         assert by_label["Date:"] is None
 
     def test_when_empty_hide_drops_the_field(self, tmp_path):
-        config = make_config(tmp_path, MINIMAL.replace("  fields:", "  fields:\n    when_empty: hide"))
+        written = MINIMAL.replace("  fields:", "  fields:\n    when_empty: hide")
+        config = make_config(tmp_path, written)
         resolved = config_module.resolve(config, make_document(tmp_path), "en")
         assert len(resolved["header"]["fields"]["items"]) == 1
 
@@ -244,7 +245,8 @@ class TestBandColours:
         assert resolved["palette"]["band"] == "#f5f5f7"
 
     def test_the_two_bands_are_coloured_apart(self, tmp_path):
-        resolved = self._resolve(tmp_path, MINIMAL.replace("footer:\n", 'footer:\n  fill: "#101014"\n'))
+        written = MINIMAL.replace("footer:\n", 'footer:\n  fill: "#101014"\n')
+        resolved = self._resolve(tmp_path, written)
         assert resolved["footer"]["fill"] == "#101014"
         assert resolved["header"]["fill"] == resolved["palette"]["band"]
 
@@ -255,7 +257,8 @@ class TestBandColours:
     def test_ink_is_a_setting_and_not_a_language(self, tmp_path):
         # `ink` has the shape of a language tag, and a section holding nothing
         # else would be read as a translation without the reserved-key list.
-        resolved = self._resolve(tmp_path, MINIMAL.replace("header:\n", 'header:\n  ink: "#0a0a0a"\n'))
+        written = MINIMAL.replace("header:\n", 'header:\n  ink: "#0a0a0a"\n')
+        resolved = self._resolve(tmp_path, written)
         assert resolved["header"]["ink"] == "#0a0a0a"
         assert resolved["header"]["fields"]["items"], "the section was swallowed"
 
@@ -277,7 +280,8 @@ class TestWordmark:
 
     def test_a_length_is_read_as_a_share_of_the_slot(self, tmp_path):
         # 67mm is `header.logo.width`, so 34pt is a little over a sixth of it.
-        wordmark = self._brand(tmp_path, MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    size: 34pt\n"))
+        written = MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    size: 34pt\n")
+        wordmark = self._brand(tmp_path, written)
         assert wordmark["wordmark"]["size"] == pytest.approx(34 / (67 * 72 / 25.4))
 
     def test_tracking_may_be_nothing_at_all(self, tmp_path):
@@ -296,13 +300,15 @@ class TestWordmark:
         assert brand["wordmark"]["running_color"] == "#1c1c20"
 
     def test_a_colour_of_its_own_is_used_in_both_places(self, tmp_path):
-        brand = self._brand(tmp_path, MINIMAL.replace("brand:\n", 'brand:\n  wordmark:\n    color: "#c00"\n'))
+        written = MINIMAL.replace("brand:\n", 'brand:\n  wordmark:\n    color: "#c00"\n')
+        brand = self._brand(tmp_path, written)
         assert brand["wordmark"]["color"] == "#c00"
         assert brand["wordmark"]["running_color"] == "#c00"
 
     def test_a_weight_outside_the_scale_is_refused(self, tmp_path):
+        written = MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    weight: 1200\n")
         with pytest.raises(ConfigError, match="brand.wordmark.weight"):
-            self._brand(tmp_path, MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    weight: 1200\n"))
+            self._brand(tmp_path, written)
 
     def test_a_named_weight_is_passed_through(self, tmp_path):
         brand = self._brand(
@@ -322,7 +328,8 @@ class TestTagline:
         assert self._tagline(tmp_path, MINIMAL)["text"] is None
 
     def test_a_plain_string_is_the_text(self, tmp_path):
-        tagline = self._tagline(tmp_path, MINIMAL.replace("brand:\n", "brand:\n  tagline: Graphic design\n"))
+        written = MINIMAL.replace("brand:\n", "brand:\n  tagline: Graphic design\n")
+        tagline = self._tagline(tmp_path, written)
         assert tagline["text"] == "Graphic design"
         assert tagline["gap"] == pytest.approx(2.4 * 72 / 25.4)
 
@@ -351,7 +358,8 @@ class TestTagline:
         assert self._tagline(tmp_path, text)["color"] == "#9d95bd"
 
     def test_an_empty_one_is_no_tagline(self, tmp_path):
-        assert self._tagline(tmp_path, MINIMAL.replace("brand:\n", "brand:\n  tagline: '   '\n"))["text"] is None
+        written = MINIMAL.replace("brand:\n", "brand:\n  tagline: '   '\n")
+        assert self._tagline(tmp_path, written)["text"] is None
 
 
 class TestBorder:

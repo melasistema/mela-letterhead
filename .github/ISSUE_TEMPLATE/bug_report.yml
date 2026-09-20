@@ -1,0 +1,77 @@
+name: Bug report
+description: Something came out wrong, or did not come out at all.
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. The most useful thing you can paste is the
+        output of `mela-letterhead check` — it names the versions, the fonts
+        actually in use and every setting that failed to resolve, which is
+        most of what would otherwise be a conversation.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+      placeholder: |
+        The footer band prints on every page, but `footer.pages` is `last`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: check
+    attributes:
+      label: What `mela-letterhead check` says
+      description: Run it in the project directory and paste the whole thing.
+      render: text
+      placeholder: |
+        Toolchain
+          ✓  pandoc 3.11  (developed against 3.11)
+          ✓  typst 0.15.1  (developed against 0.15.1)
+        …
+    validations:
+      required: true
+
+  - type: textarea
+    id: letterhead
+    attributes:
+      label: The relevant part of `letterhead.yaml`
+      description: >
+        The section that is misbehaving is usually enough. Please take out your
+        real business details — a VAT number or an IBAN has no bearing on the
+        bug and this is a public repository.
+      render: yaml
+    validations:
+      required: false
+
+  - type: textarea
+    id: document
+    attributes:
+      label: The smallest Markdown that shows it
+      description: Front matter included, if it matters.
+      render: markdown
+    validations:
+      required: false
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.5 (Apple silicon) / Ubuntu 24.04 / Windows 11
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How it was installed
+      options:
+        - pipx
+        - pip, into a virtual environment
+        - from a clone, with pip install -e
+        - something else
+    validations:
+      required: true

@@ -31,7 +31,7 @@ import json
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Sequence
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence
 
 from . import config as config_module
 from . import markdown_prep, toolchain
@@ -78,7 +78,7 @@ def build_all(
     config: Config,
     sources: Optional[Sequence[Path]] = None,
     keep_build: bool = False,
-    on_start: Optional[Any] = None,
+    on_start: Optional[Callable[[Path], None]] = None,
 ) -> List[BuildResult]:
     """Build the given documents, or every document the configuration selects."""
     if sources:

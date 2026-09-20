@@ -1,5 +1,8 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+# 77 is the first release that reads `license` as an SPDX expression rather
+# than as free text, which is what PyPI wants and what the classifier used to
+# say twice.
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +11,8 @@ version = "0.2.2"
 description = "Turn Markdown into branded PDF documents on your own letterhead, in any language, with Pandoc and Typst."
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Luca Visciola (Melasistema)" }]
 keywords = [
     "letterhead",
@@ -25,7 +29,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -40,11 +43,13 @@ classifiers = [
 dependencies = ["PyYAML>=6.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "pytest-cov", "ruff", "mypy", "types-PyYAML", "build"]
 
 [project.urls]
 Homepage = "https://github.com/melasistema/mela-letterhead"
 Repository = "https://github.com/melasistema/mela-letterhead"
+Documentation = "https://github.com/melasistema/mela-letterhead#readme"
+Changelog = "https://github.com/melasistema/mela-letterhead/blob/master/CHANGELOG.md"
 Issues = "https://github.com/melasistema/mela-letterhead/issues"
 
 [project.scripts]
@@ -63,3 +68,43 @@ mela_letterhead = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+# Measured, not chosen: nothing in `src` reaches 98 columns, so this describes
+# the code as it was written rather than asking it to change. Prose in the
+# comments and docstrings is wrapped much shorter than this by hand, which is
+# also why `ruff format` is not run over this project — it would unwrap those
+# lines to fill the column and take the shape out of them. `ruff check`
+# enforces the limit; how a line gets under it stays a judgement.
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+# E and F are the defaults, I keeps the import blocks sorted, B catches the
+# mutable-default and loop-variable-capture traps.
+#
+# UP is deliberately absent. It would rewrite `Dict[str, Any]` to `dict[str,
+# Any]` and `Optional[str]` to `str | None` in 150 places — safe under the
+# `from __future__ import annotations` every module already carries, but pure
+# churn while `requires-python` is still 3.9. It goes in with the 3.10 floor,
+# in one commit that does nothing else.
+select = ["E", "F", "I", "B"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+# The tests monkeypatch freely and are not annotated; `src` is.
+files = ["src"]
+
+[tool.coverage.run]
+source = ["mela_letterhead"]
+# Four lines that exist so `python -m mela_letterhead` works from a clone.
+# Running the module to cover them would mean running the whole command.
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+# 91% with Pandoc and Typst installed, which is what CI has. The floor sits
+# under that rather than at it, so that moving a line does not fail a build —
+# raise it when the number genuinely moves, and never lower it quietly.
+fail_under = 88
+show_missing = true

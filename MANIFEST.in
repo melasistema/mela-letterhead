@@ -1,0 +1,14 @@
+# What the source distribution carries beyond the code.
+#
+# The package data — assets/, the scaffold and the locale packs — is already
+# declared in pyproject.toml under [tool.setuptools.package-data], and the
+# sdist picks it up from there; verify with:
+#
+#     python -m build
+#     tar tzf dist/mela_letterhead-*.tar.gz | grep -E 'assets|locales'
+#
+# This file is only for the things that live outside the package and would
+# otherwise be left out. A changelog is the first thing a distribution
+# packager looks for in an sdist, and the licence is the second.
+include CHANGELOG.md
+include LICENSE

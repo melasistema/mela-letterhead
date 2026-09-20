@@ -1,0 +1,14 @@
+# A vulnerability does not belong in a public issue, and a question is not a
+# bug report. Both get a link of their own on the "new issue" page.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/melasistema/mela-letterhead/security/advisories/new
+    about: Report it privately instead. See SECURITY.md for what is in scope.
+
+  - name: Something looks wrong on the page
+    url: https://github.com/melasistema/mela-letterhead#when-something-looks-wrong
+    about: >
+      The README covers the usual ones — a substituted font, a band on every
+      page, a table column too narrow, text sitting on top of the artwork.

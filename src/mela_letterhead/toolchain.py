@@ -11,7 +11,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Sequence
+from typing import List, NamedTuple, Optional, Sequence, Tuple
 
 from .errors import ToolchainError
 
@@ -186,6 +186,6 @@ def _read_version(path: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
-def _version_tuple(version: str) -> tuple:
+def _version_tuple(version: str) -> Tuple[int, ...]:
     """A dotted version as numbers, so that 0.9 sorts below 0.12."""
     return tuple(int(part) for part in re.findall(r"\d+", version))

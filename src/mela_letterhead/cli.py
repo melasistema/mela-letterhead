@@ -7,11 +7,10 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
-from . import __version__
+from . import __version__, builder, i18n, toolchain
 from . import config as config_module
-from . import builder, i18n, toolchain
 from .config import Config
 from .document import Document, discover
 from .errors import LetterheadError
@@ -433,7 +432,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 0
 
     try:
-        return args.handler(args)
+        # Bound through `set_defaults`, so argparse knows it only as an object.
+        status: int = args.handler(args)
+        return status
     except LetterheadError as error:
         _report(error)
         return 1

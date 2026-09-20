@@ -35,6 +35,35 @@ jobs:
           done
           exit $status
 
+  # Kept apart from the tests on purpose: a job that fails for a long line and
+  # a job that fails for a broken build should not be the same red tick.
+  lint:
+    name: Lint and types
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install the package
+        run: pip install -e ".[dev]"
+
+      # Neither runs `ruff format`. The prose in this codebase is wrapped by
+      # hand, much shorter than the 100 columns ruff would fill; formatting it
+      # would unwrap every one of those lines. The line limit is enforced,
+      # how a line gets under it is not.
+      - name: ruff
+        run: ruff check src tests
+
+      # `strict`, and against 3.9 — the version the package claims to support,
+      # not the one this job happens to run on.
+      - name: mypy
+        run: mypy
+
   test:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
@@ -68,13 +97,66 @@ jobs:
       - name: Install the package
         run: pip install -e ".[dev]"
 
+      # Coverage is measured here rather than in `lint`, because a good third
+      # of it only runs when Pandoc and Typst are installed — the floor is
+      # meaningless on a job that has neither.
       - name: Run the tests
-        run: pytest -v
+        run: pytest -v --cov
 
       - name: Build the scaffolded letterhead end to end
         run: |
           mkdir -p /tmp/smoke
           cd /tmp/smoke
+          mela-letterhead init .
+          mela-letterhead check
+          mela-letterhead build
+          test -f example-letter.pdf
+
+  # The `test` job above is deliberately Ubuntu-only, because apt's Pandoc 3.1
+  # is the combination that has to keep working. This one is about the other
+  # axis: a path is not a string, `shutil.which` looks for different things,
+  # and a picture staged into the build directory is rewritten into an
+  # `image()` call that Typst reads with forward slashes whatever the platform
+  # spells them as. One Python is enough — what is under test is the operating
+  # system, not the interpreter.
+  platforms:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # Not apt, obviously; these two actions are what install the same
+      # programs on all three platforms.
+      - name: Install Pandoc
+        uses: pandoc/actions/setup@v1
+
+      - name: Install Typst
+        uses: typst-community/setup-typst@v5
+
+      - name: Install the package
+        run: pip install -e ".[dev]"
+
+      - name: Run the tests
+        run: pytest -v
+
+      # The same smoke build, written so it runs under both bash and
+      # PowerShell — `cd` into a scratch directory the runner already has, and
+      # let the exit status of each command speak.
+      - name: Build the scaffolded letterhead end to end
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke"
+          cd "$RUNNER_TEMP/smoke"
           mela-letterhead init .
           mela-letterhead check
           mela-letterhead build

@@ -2,7 +2,8 @@ name: Release
 
 # Releasing is a tag. You bump the version, write the CHANGELOG section in your
 # own words, commit, and push the tag; this turns that tag into a GitHub
-# release with the section you wrote as its notes.
+# release with the section you wrote as its notes, and then into a release on
+# PyPI.
 #
 #     # bump pyproject.toml and src/mela_letterhead/__init__.py,
 #     # and head the CHANGELOG section with the new version
@@ -109,3 +110,64 @@ jobs:
             --title "$GITHUB_REF_NAME" \
             --notes-file notes.md \
             --verify-tag
+
+  # A job of its own, after the release rather than inside it, for two
+  # reasons. A failed upload must not take the GitHub release down with it —
+  # PyPI refuses a version that is already there, so a retry is a matter of
+  # re-running this job alone. And `permissions` is set per job: this is the
+  # only one that needs a token to mint an identity with, and it needs nothing
+  # else, not even write access to the repository.
+  #
+  # There is no API token anywhere. Trusted Publishing has PyPI verify the
+  # short-lived OIDC token GitHub issues to this workflow, against a publisher
+  # registered on the project: repository melasistema/mela-letterhead,
+  # workflow release.yml, environment pypi. Change any of those three names
+  # and the upload stops being recognised.
+  publish:
+    name: Publish to PyPI
+    needs: release
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # Both artefacts. The wheel is what almost everyone installs; the sdist
+      # is what a distribution packager builds from, and what carries the
+      # tests. Each has to hold the scaffold and the locale packs — a wheel
+      # that installs without its plates gives a `mela-letterhead init` that
+      # writes a broken letterhead — so that is checked here rather than
+      # discovered by the first person to install it.
+      - name: Build the artefacts
+        run: |
+          pip install build
+          python -m build
+
+      - name: Check that the scaffold travelled with them
+        run: |
+          for expected in \
+              assets/letterhead.typ \
+              assets/pandoc-typst.template \
+              assets/scaffold/letterhead.yaml \
+              assets/scaffold/example-letter.md \
+              assets/scaffold/logo.svg \
+              locales/en.yaml; do
+            python -m zipfile -l dist/*.whl | grep -q "mela_letterhead/$expected" || {
+              echo "::error::the wheel is missing $expected" >&2
+              exit 1
+            }
+            tar tzf dist/*.tar.gz | grep -q "src/mela_letterhead/$expected" || {
+              echo "::error::the sdist is missing $expected" >&2
+              exit 1
+            }
+          done
+          echo "both artefacts carry the scaffold"
+
+      - uses: pypa/gh-action-pypi-publish@release/v1

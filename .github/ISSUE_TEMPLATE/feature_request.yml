@@ -1,0 +1,54 @@
+name: Feature request
+description: Something the tool should be able to do and cannot.
+labels: ["enhancement"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Settings are cheap to add and expensive to remove, so the most
+        convincing request is one that starts from a document you were trying
+        to produce rather than from a setting you would like to exist.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you were trying to print
+      description: >
+        The document, and what about it you could not get onto the page.
+      placeholder: |
+        An invoice whose footer has to carry a QR code for payment, which there
+        is currently no way to place.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What you tried
+      description: >
+        Including whether `markdown.extra_args`, a picture, or a change to the
+        example document got you partway there.
+    validations:
+      required: false
+
+  - type: textarea
+    id: shape
+    attributes:
+      label: How you imagine it being written
+      description: >
+        A sketch of the YAML, if you have one in mind. It does not have to be
+        right — it says more about what you mean than a paragraph would.
+      render: yaml
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: One check
+      options:
+        - label: >
+            This is about getting something onto the page, not about the tool
+            doing something other than turning Markdown into a letterhead.
+          required: false

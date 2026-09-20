@@ -21,12 +21,15 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import yaml
 
 from . import i18n, units
 from .errors import ConfigError
+
+if TYPE_CHECKING:  # `document` imports this module, so the name is only a name
+    from .document import Document
 
 CONFIG_FILENAME = "letterhead.yaml"
 
@@ -340,7 +343,7 @@ _BACKGROUND_FITS = ("cover", "contain")
 _BACKGROUND_PAGES = ("first", "rest", "all")
 
 #: What each name for a border's sides expands to.
-_BORDER_SIDES: Dict[str, tuple] = {
+_BORDER_SIDES: Dict[str, Tuple[str, ...]] = {
     "all": ("left", "right", "top", "bottom"),
     "none": (),
     "left": ("left",),
@@ -443,11 +446,10 @@ def load(path: Optional[Path] = None, start: Optional[Path] = None) -> Config:
     return Config(merged, path)
 
 
-def resolve(config: Config, document: "Any", language: str) -> Dict[str, Any]:
+def resolve(config: Config, document: "Document", language: str) -> Dict[str, Any]:
     """Produce the resolved configuration for one document in one language.
 
-    ``document`` is a :class:`~mela_letterhead.document.Document`; it supplies
-    the values of the header fields and the document's own title.
+    The document supplies the values of the header fields and its own title.
     """
     chain = i18n.fallback_chain(language, config.default_language)
     strings = i18n.load_locale(chain, config.locales_dir)
@@ -908,6 +910,14 @@ def _resolve_footer_row(row: Any, where: str) -> Dict[str, Any]:
     ``["Tel.", "+39 ..."]``      a label and a value
     ``{label:, value:, ...}``    the full form, with ``link`` and ``style``
     """
+    # Declared before the branches because each writes something different
+    # here: a string, whatever the two-item list held, or whatever the mapping
+    # held. `_as_text` below is what settles them into the strings that print.
+    label: Any
+    value: Any
+    link: Any
+    style: str
+
     if isinstance(row, str):
         label, value, link, style = None, row, None, "normal"
 

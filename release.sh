@@ -309,6 +309,22 @@ else
     note "pytest is not on PATH; the workflow will run the suite instead"
 fi
 
+# CI fails a release branch for either of these, and finding out from a red
+# tick after the tag is public is the whole thing this script exists to avoid.
+if command -v ruff >/dev/null 2>&1; then
+    ruff check --quiet src tests || die "ruff has something to say"
+    good "ruff is happy"
+else
+    note "ruff is not on PATH; CI will run it instead"
+fi
+
+if command -v mypy >/dev/null 2>&1; then
+    mypy --no-error-summary || die "mypy has something to say"
+    good "mypy is happy"
+else
+    note "mypy is not on PATH; CI will run it instead"
+fi
+
 step "The release notes, as GitHub will show them"
 say ""
 sed 's/^/  /' "$work/notes.md"
@@ -334,3 +350,5 @@ say "  Push it:"
 say "      ${bold}git push && git push origin v$version${off}"
 say ""
 note "nothing has left this machine yet; the tag is what triggers the release"
+note "which cuts the GitHub release and then publishes to PyPI — and PyPI"
+note "will not take the same version twice, so the tag is the point of no return"

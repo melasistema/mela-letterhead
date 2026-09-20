@@ -90,23 +90,16 @@ winget install --id JohnMacFarlane.Pandoc
 winget install --id Typst.Typst
 ```
 
-Then the tool itself, in a virtual environment:
+Then the tool itself:
 
 ```bash
-git clone https://github.com/melasistema/mela-letterhead.git
-cd mela-letterhead
-
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -e .
+pipx install mela-letterhead
 ```
 
-That gives you a `mela-letterhead` command for as long as the environment is
-active. `pip install -e .` installs it in place, so pulling a change is enough
-to get it — there is nothing to reinstall.
-
-From a clone you can also skip the console script entirely and run
-`python -m mela_letterhead` instead.
+[pipx](https://pipx.pypa.io) puts it in an environment of its own and the
+`mela-letterhead` command on your PATH, which is what you want for something
+you run rather than import. `pip install mela-letterhead` works too, inside a
+virtual environment you have activated.
 
 Python 3.9 or newer. The only Python dependency is PyYAML.
 
@@ -114,6 +107,24 @@ Pandoc 3.1 or newer and Typst 0.12 or newer. `mela-letterhead check` prints
 which versions it found, and refuses one it is too old to build with rather
 than letting the failure surface as a compiler error about a name Typst has
 never heard of.
+
+### From a clone
+
+The way to work on the tool, and the way to run a change without waiting for a
+release:
+
+```bash
+git clone https://github.com/melasistema/mela-letterhead.git
+cd mela-letterhead
+
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
+
+`-e` installs it in place, so pulling a change is enough to get it — there is
+nothing to reinstall. From a clone you can also skip the console script
+entirely and run `python -m mela_letterhead` instead.
 
 ---
 
@@ -656,6 +667,21 @@ machine compiling it has, so a drawing built from live text shifts between
 computers. Convert the lettering to paths, or leave it to the caption, where it
 is typeset with the rest of the document.
 
+**Anything else Pandoc can do.** `markdown.extra_args` is appended to the
+Pandoc command line, which is the escape hatch for a reader extension, a
+bibliography, a Lua filter of your own:
+
+```yaml
+markdown:
+  extra_args: ["--citeproc", "--bibliography=references.bib"]
+```
+
+Worth knowing what that means: `--lua-filter`, `--filter` and `-F` name
+programs, and Pandoc runs them. A `letterhead.yaml` carrying those is
+executable configuration, so treat one you did not write the way you would
+treat a script somebody sent you — read it before you build with it. Everything
+else in this file only describes a page.
+
 <p align="center">
   <img src="assets/screenshots/03-figures.png" width="880"
        alt="A page of the quotation carrying pictures: a centred schematic of a rainwater collection point with a small grey caption beneath it, and below that two further drawings — a bar chart and a roof plan — standing side by side at half the column width each." />
@@ -801,7 +827,10 @@ own.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-pytest
+
+pytest              # the suite
+ruff check src tests
+mypy                # strict, against the 3.9 the package claims
 ```
 
 The suite covers unit conversion, language resolution, front matter, the
@@ -810,8 +839,10 @@ builds that run the real Pandoc and the real Typst. Those last ones skip
 themselves when either program is missing, so you can work on the rest without
 the toolchain installed.
 
-Contributions are welcome. Code, comments and documentation are in English; only
-the text that appears on a user's letterhead is translated.
+Contributions are welcome, and [CONTRIBUTING.md](CONTRIBUTING.md) is the short
+version of how: the commit grammar, and the three edits a new setting needs.
+Code, comments and documentation are in English; only the text that appears on a
+user's letterhead is translated.
 
 ---
 
