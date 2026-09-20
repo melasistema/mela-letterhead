@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-09-20
+
 ### Added
 
 - Pandoc and Typst are now checked against the oldest release this can be run
@@ -125,6 +127,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   resolved configuration, in the document's own language, as the documentation
   has always said they were.
 
-[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/melasistema/mela-letterhead/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/melasistema/mela-letterhead/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/melasistema/mela-letterhead/releases/tag/v0.2.0
