@@ -36,6 +36,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from . import yaml_loader
 from .errors import ConfigError
 
 #: ``en``, ``pt-BR``, ``de_AT``, ``zh-Hans`` — the shapes a language key may take.
@@ -253,7 +254,13 @@ def _read_locale_file(directory: Path, tag: str) -> Dict[str, Any]:
         if path.stem.replace("_", "-").lower() != wanted:
             continue
         try:
-            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            data = yaml_loader.load(path.read_text(encoding="utf-8")) or {}
+        except yaml_loader.DuplicateKeyError as exc:
+            raise ConfigError(
+                f"{path}: '{exc.key}' is set twice, on line {exc.first_line} "
+                f"and on line {exc.second_line}",
+                hint=yaml_loader.DUPLICATE_KEY_HINT,
+            ) from exc
         except yaml.YAMLError as exc:
             raise ConfigError(f"{path}: {exc}") from exc
         if not isinstance(data, dict):

@@ -101,6 +101,17 @@ class TestLoading:
         with pytest.raises(ConfigError, match="palette.band"):
             config_module.resolve(config, make_document(tmp_path), "en")
 
+    def test_a_key_set_twice_is_named_with_both_its_lines(self, tmp_path):
+        # The setting written at the top of a section, already set further
+        # down: YAML takes the second and says nothing, so the page came out
+        # 43mm and `check` called the file clean.
+        with pytest.raises(ConfigError) as caught:
+            make_config(tmp_path, "header:\n  height: 30mm\n  show: true\n  height: 43mm\n")
+        assert "'height' is set twice" in caught.value.message
+        assert "line 2" in caught.value.message
+        assert "line 4" in caught.value.message
+        assert "Delete whichever is not wanted" in caught.value.hint
+
     def test_a_future_schema_version_is_refused(self, tmp_path):
         with pytest.raises(ConfigError, match="version"):
             make_config(tmp_path, "version: 99\n")

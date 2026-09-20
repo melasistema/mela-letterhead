@@ -96,6 +96,11 @@ belongs in `i18n._RESERVED_KEYS`.
   examples, tests, screenshots or documentation.
 - **Code, comments, tests and documentation are in English.** Only the text
   that appears on a user's letterhead is translated.
+- **Every file a user edits by hand is read through `yaml_loader.load`.** Not
+  `yaml.safe_load`: YAML's rule is that the last of two keys spelled the same
+  way wins, which turned a setting written twice into a page nobody asked for
+  out of a file `check` called clean. The loader refuses a repeat and names
+  both lines. A new place that reads YAML belongs on it too.
 - **Not every character the command prints can be printed.** Windows gives a
   redirected command the ANSI code page rather than UTF-8, and there is no tick
   in cp1252 — printing one used to end `check` in a `UnicodeEncodeError` on the

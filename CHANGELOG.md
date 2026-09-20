@@ -6,6 +6,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A setting written twice is no longer taken quietly the second time. YAML's
+  rule is that the last of two keys spelled the same way wins, and PyYAML
+  follows it without a word — so a height added at the top of `header:`, where
+  one was already set twelve lines further down, produced a page nobody had
+  asked for out of a file `check` called clean. That was the last way to get a
+  wrong page with a clean report. All three files edited by hand — the
+  configuration, a document's front matter and a locale pack — now refuse a
+  repeated key, naming it and both of the lines it was written on, and counting
+  those lines from the top of the file rather than from the top of the front
+  matter. A `<<` merge key is untouched: overriding something merged in is the
+  point of merging, and is not a repeat.
+
 ## [0.3.1] — 2026-09-20
 
 ### Fixed

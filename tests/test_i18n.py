@@ -1,6 +1,7 @@
 import pytest
 
 from mela_letterhead import i18n
+from mela_letterhead.errors import ConfigError
 
 
 class TestLanguageMapDetection:
@@ -158,6 +159,15 @@ class TestLocalePacks:
         assert "Seite" in strings["running_header"]
         # Anything the new pack omits still falls back to English.
         assert strings["untitled"] == "Untitled document"
+
+    def test_a_pack_that_sets_a_string_twice_is_refused(self, tmp_path):
+        (tmp_path / "de.yaml").write_text(
+            "running_header: 'Seite {page}'\nuntitled: x\nrunning_header: 'S. {page}'\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ConfigError) as caught:
+            i18n.load_locale(["de", "en"], tmp_path)
+        assert "'running_header' is set twice" in caught.value.message
 
     def test_available_locales_lists_both_sources(self, tmp_path):
         (tmp_path / "de.yaml").write_text("untitled: x\n", encoding="utf-8")

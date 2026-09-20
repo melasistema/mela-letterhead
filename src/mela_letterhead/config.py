@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import yaml
 
-from . import i18n, units
+from . import i18n, units, yaml_loader
 from .errors import ConfigError
 
 if TYPE_CHECKING:  # `document` imports this module, so the name is only a name
@@ -422,7 +422,13 @@ def load(path: Optional[Path] = None, start: Optional[Path] = None) -> Config:
         raise ConfigError(f"{path}: no such file")
 
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        raw = yaml_loader.load(path.read_text(encoding="utf-8"))
+    except yaml_loader.DuplicateKeyError as exc:
+        raise ConfigError(
+            f"{path}: '{exc.key}' is set twice, on line {exc.first_line} "
+            f"and on line {exc.second_line}",
+            hint=yaml_loader.DUPLICATE_KEY_HINT,
+        ) from exc
     except yaml.YAMLError as exc:
         raise ConfigError(f"{path}: {exc}") from exc
     except OSError as exc:

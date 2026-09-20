@@ -320,10 +320,14 @@ class TestStaging:
         assert builder._stage_background(self.config(project), project, None) is None
 
     def test_a_font_path_that_is_not_a_directory_is_refused(self, project):
+        # Written into the `fonts:` the scaffold already has, rather than
+        # appended as a second one: a file that sets the same key twice is now
+        # refused before anything in it is read.
         text = (project / "letterhead.yaml").read_text(encoding="utf-8")
-        (project / "letterhead.yaml").write_text(
-            text + "\nfonts:\n  paths: [assets/logo.svg]\n", encoding="utf-8"
-        )
+        lines = text.splitlines(True)
+        at = next(i for i, line in enumerate(lines) if line.startswith("fonts:"))
+        lines.insert(at + 1, "  paths: [assets/logo.svg]\n")
+        (project / "letterhead.yaml").write_text("".join(lines), encoding="utf-8")
         config = config_module.load(project / "letterhead.yaml")
         with pytest.raises(ConfigError, match="not a directory"):
             builder.font_paths(config)

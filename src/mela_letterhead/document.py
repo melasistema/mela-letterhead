@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from . import yaml_loader
 from .errors import DocumentError
 
 #: Front-matter keys the tool reads itself. Everything else is a header field.
@@ -188,7 +189,18 @@ def split_front_matter(text: str, path: Optional[Path] = None) -> "tuple[Dict[st
         return {}, text.lstrip("﻿")
 
     try:
-        metadata = yaml.safe_load(match.group("body"))
+        metadata = yaml_loader.load(match.group("body"))
+    except yaml_loader.DuplicateKeyError as exc:
+        where = f"{path}: " if path else ""
+        # The front matter is parsed on its own, so its lines are numbered from
+        # one again; the person reading the error counts from the top of the
+        # file, which is a few lines further up.
+        offset = text[: match.start("body")].count("\n")
+        raise DocumentError(
+            f"{where}the front matter sets '{exc.key}' twice, on line "
+            f"{exc.first_line + offset} and on line {exc.second_line + offset}",
+            hint=yaml_loader.DUPLICATE_KEY_HINT,
+        ) from exc
     except yaml.YAMLError as exc:
         where = f"{path}: " if path else ""
         raise DocumentError(

@@ -41,6 +41,20 @@ class TestFrontMatter:
         with pytest.raises(DocumentError, match="mapping"):
             split_front_matter("---\n- one\n- two\n---\nText\n")
 
+    def test_a_key_set_twice_is_refused(self):
+        with pytest.raises(DocumentError) as caught:
+            split_front_matter("---\ntitle: Offer\nlang: it\ntitle: Quotation\n---\nText\n")
+        assert "sets 'title' twice" in caught.value.message
+
+    def test_the_lines_are_counted_from_the_top_of_the_file(self):
+        # The front matter is parsed on its own and numbered from one again;
+        # the person reading the error is looking at the whole file, where the
+        # opening `---` is line one.
+        with pytest.raises(DocumentError) as caught:
+            split_front_matter("---\ntitle: Offer\nlang: it\ntitle: Quotation\n---\nText\n")
+        assert "line 2" in caught.value.message
+        assert "line 4" in caught.value.message
+
 
 class TestTitles:
     def test_front_matter_wins(self, tmp_path):
