@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mela-letterhead"
-version = "0.2.2"
+version = "0.3.0"
 description = "Turn Markdown into branded PDF documents on your own letterhead, in any language, with Pandoc and Typst."
 readme = "README.md"
 requires-python = ">=3.9"
