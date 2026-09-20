@@ -25,7 +25,7 @@ Each transformation can be switched off in ``letterhead.yaml``.
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence
+from collections.abc import Sequence
 
 #: A table separator row: ``|---|:--:|---:|``
 _SEPARATOR_RE = re.compile(r"^\s*\|(?:\s*:?-{2,}:?\s*\|)+\s*$")
@@ -52,7 +52,7 @@ _MINIMUM = 9
 _DAMPING = 0.7
 
 
-def prepare(text: str, options: Optional[Dict[str, object]] = None) -> str:
+def prepare(text: str, options: dict[str, object] | None = None) -> str:
     """Apply the enabled transformations to a Markdown body."""
     options = options or {}
     rewrite_tables = bool(options.get("rewrite_table_widths", True))
@@ -60,8 +60,8 @@ def prepare(text: str, options: Optional[Dict[str, object]] = None) -> str:
     bold_header = bool(options.get("bold_table_header", True))
 
     lines = text.split("\n")
-    output: List[str] = []
-    table: List[str] = []
+    output: list[str] = []
+    table: list[str] = []
     fence: str = ""
 
     def flush_table() -> None:
@@ -105,7 +105,7 @@ def prepare(text: str, options: Optional[Dict[str, object]] = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _rewrite_table(block: List[str], rewrite_widths: bool, bold_header: bool) -> List[str]:
+def _rewrite_table(block: list[str], rewrite_widths: bool, bold_header: bool) -> list[str]:
     """Rewrite one pipe table's separator row and header row."""
     separator_index = next(
         (i for i, line in enumerate(block) if _SEPARATOR_RE.match(line)), None
@@ -140,10 +140,10 @@ def _rewrite_table(block: List[str], rewrite_widths: bool, bold_header: bool) ->
     return result
 
 
-def _column_widths(rows: Sequence[Sequence[str]], column_count: int) -> List[int]:
+def _column_widths(rows: Sequence[Sequence[str]], column_count: int) -> list[int]:
     """Share ``_TOTAL_WIDTH`` dashes out between the columns."""
-    weights: List[float] = []
-    minimums: List[float] = []
+    weights: list[float] = []
+    minimums: list[float] = []
 
     for index in range(column_count):
         column = [row[index] for row in rows]
@@ -188,11 +188,11 @@ def _column_widths(rows: Sequence[Sequence[str]], column_count: int) -> List[int
     return [max(3, round(share)) for share in shares]
 
 
-def _cells(row: str) -> List[str]:
+def _cells(row: str) -> list[str]:
     return [cell.strip() for cell in row.strip().strip("|").split("|")]
 
 
-def _alignment(cell: str) -> "tuple[bool, bool]":
+def _alignment(cell: str) -> tuple[bool, bool]:
     stripped = cell.strip()
     return stripped.startswith(":"), stripped.endswith(":")
 
@@ -223,7 +223,7 @@ def _embolden(cell: str) -> str:
 
 def _collapse_blank_lines(lines: Sequence[str]) -> str:
     """Reduce runs of blank lines to one. Pandoc treats any run alike."""
-    collapsed: List[str] = []
+    collapsed: list[str] = []
     for line in lines:
         if not line.strip() and collapsed and not collapsed[-1].strip():
             continue

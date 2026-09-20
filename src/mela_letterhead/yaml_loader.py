@@ -26,7 +26,8 @@ something it merged in is still legal — which is the whole point of merging.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, cast
+from collections.abc import Callable
+from typing import Any, cast
 
 import yaml
 
@@ -63,8 +64,8 @@ class DuplicateKeyError(yaml.MarkedYAMLError):
 class Loader(yaml.SafeLoader):
     """``yaml.SafeLoader``, plus a refusal to read the same key twice."""
 
-    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> Dict[Any, Any]:
-        seen: Dict[Any, yaml.Mark] = {}
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen: dict[Any, yaml.Mark] = {}
 
         # Keys are constructed rather than read off the node, because YAML says
         # `yes` and `true` are the same key and the raw text does not. Bound

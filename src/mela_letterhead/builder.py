@@ -30,8 +30,9 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence
+from typing import Any, NamedTuple
 
 from . import config as config_module
 from . import markdown_prep, toolchain
@@ -76,10 +77,10 @@ class BuildResult(NamedTuple):
 
 def build_all(
     config: Config,
-    sources: Optional[Sequence[Path]] = None,
+    sources: Sequence[Path] | None = None,
     keep_build: bool = False,
-    on_start: Optional[Callable[[Path], None]] = None,
-) -> List[BuildResult]:
+    on_start: Callable[[Path], None] | None = None,
+) -> list[BuildResult]:
     """Build the given documents, or every document the configuration selects."""
     if sources:
         paths = [Path(source).resolve() for source in sources]
@@ -148,7 +149,7 @@ def build_document(config: Config, source: Path, keep_build: bool = False) -> Bu
 # ---------------------------------------------------------------------------
 
 
-def _stage(config: Config, document: Document, resolved: Dict[str, Any]) -> Path:
+def _stage(config: Config, document: Document, resolved: dict[str, Any]) -> Path:
     """Create the document's build directory and fill it."""
     workdir = config.build_dir / document.slug
     if workdir.exists():
@@ -171,8 +172,8 @@ def _stage(config: Config, document: Document, resolved: Dict[str, Any]) -> Path
 
 
 def _stage_logo(
-    config: Config, workdir: Path, configured: Optional[str]
-) -> Optional[str]:
+    config: Config, workdir: Path, configured: str | None
+) -> str | None:
     """The brand's mark, as the configuration names it."""
     return _stage_asset(
         config,
@@ -185,8 +186,8 @@ def _stage_logo(
 
 
 def _stage_background(
-    config: Config, workdir: Path, configured: Optional[str]
-) -> Optional[str]:
+    config: Config, workdir: Path, configured: str | None
+) -> str | None:
     """The picture behind the page, as the configuration names it.
 
     The advice matters more here than for the logo, because the likeliest way
@@ -207,12 +208,12 @@ def _stage_background(
 def _stage_asset(
     config: Config,
     workdir: Path,
-    configured: Optional[str],
+    configured: str | None,
     setting: str,
     stem: str,
     missing: str = "",
     unplaceable: str = "",
-) -> Optional[str]:
+) -> str | None:
     """Copy a picture the configuration names, and return its name here.
 
     The logo and the page background are both read relative to the
@@ -247,7 +248,7 @@ def _stage_asset(
     return name
 
 
-def _stage_images(source_dir: Path, workdir: Path, generated: Path) -> List[str]:
+def _stage_images(source_dir: Path, workdir: Path, generated: Path) -> list[str]:
     """Copy the pictures the generated Typst asks for, and repoint it at them.
 
     Paths are read relative to the document that names them, which is where a
@@ -256,10 +257,10 @@ def _stage_images(source_dir: Path, workdir: Path, generated: Path) -> List[str]
     what the document is carrying; a name used twice gains a number.
     """
     text = generated.read_text(encoding="utf-8")
-    staged: Dict[str, str] = {}
-    taken: Dict[Path, str] = {}
+    staged: dict[str, str] = {}
+    taken: dict[Path, str] = {}
 
-    def place(match: "re.Match[str]") -> str:
+    def place(match: re.Match[str]) -> str:
         written = _unescape(match.group(2))
         if written not in staged:
             staged[written] = _stage_one_image(source_dir, workdir, written, taken)
@@ -274,7 +275,7 @@ def _stage_images(source_dir: Path, workdir: Path, generated: Path) -> List[str]
 
 
 def _stage_one_image(
-    source_dir: Path, workdir: Path, written: str, taken: Dict[Path, str]
+    source_dir: Path, workdir: Path, written: str, taken: dict[Path, str]
 ) -> str:
     """Copy one picture into the build directory and return its name there."""
     if _REMOTE_RE.match(written):
@@ -317,7 +318,7 @@ def _stage_one_image(
     return placed
 
 
-def _unique_name(name: str, used: "set[str]") -> str:
+def _unique_name(name: str, used: set[str]) -> str:
     """Number a name that two different files would otherwise share."""
     if name not in used:
         return name
@@ -364,7 +365,7 @@ def _run_typst(config: Config, workdir: Path, source: Path, target: Path) -> Non
     toolchain.run(command)
 
 
-def font_paths(config: Config) -> List[Path]:
+def font_paths(config: Config) -> list[Path]:
     paths = config.data["fonts"].get("paths") or []
     if isinstance(paths, str):
         paths = [paths]

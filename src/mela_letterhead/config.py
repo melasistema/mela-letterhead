@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -38,7 +38,7 @@ CONFIG_FILENAMES = (CONFIG_FILENAME, "letterhead.yml", ".letterhead.yaml")
 
 #: The written shape, with every default filled in. A user's file is merged on
 #: top of this, key by key, so a configuration may be as short as a brand name.
-DEFAULT_CONFIG: Dict[str, Any] = {
+DEFAULT_CONFIG: dict[str, Any] = {
     # Schema version. Bumped only for a change that would misread an old file.
     "version": 1,
     # Language used by documents that declare none of their own.
@@ -343,7 +343,7 @@ _BACKGROUND_FITS = ("cover", "contain")
 _BACKGROUND_PAGES = ("first", "rest", "all")
 
 #: What each name for a border's sides expands to.
-_BORDER_SIDES: Dict[str, Tuple[str, ...]] = {
+_BORDER_SIDES: dict[str, tuple[str, ...]] = {
     "all": ("left", "right", "top", "bottom"),
     "none": (),
     "left": ("left",),
@@ -362,7 +362,7 @@ class Config:
     a configuration can be used from any working directory.
     """
 
-    def __init__(self, data: Dict[str, Any], path: Optional[Path]) -> None:
+    def __init__(self, data: dict[str, Any], path: Path | None) -> None:
         self.data = data
         self.path = path
         self.directory = path.parent.resolve() if path else Path.cwd()
@@ -395,7 +395,7 @@ class Config:
         return str(self.data.get("language") or i18n.DEFAULT_LANGUAGE)
 
 
-def find_config(start: Optional[Path] = None) -> Optional[Path]:
+def find_config(start: Path | None = None) -> Path | None:
     """Search ``start`` and its parents for a letterhead configuration."""
     directory = (start or Path.cwd()).resolve()
     for candidate_dir in [directory, *directory.parents]:
@@ -406,7 +406,7 @@ def find_config(start: Optional[Path] = None) -> Optional[Path]:
     return None
 
 
-def load(path: Optional[Path] = None, start: Optional[Path] = None) -> Config:
+def load(path: Path | None = None, start: Path | None = None) -> Config:
     """Load a configuration, searching upwards from ``start`` if none is given."""
     if path is None:
         found = find_config(start)
@@ -452,7 +452,7 @@ def load(path: Optional[Path] = None, start: Optional[Path] = None) -> Config:
     return Config(merged, path)
 
 
-def resolve(config: Config, document: "Document", language: str) -> Dict[str, Any]:
+def resolve(config: Config, document: Document, language: str) -> dict[str, Any]:
     """Produce the resolved configuration for one document in one language.
 
     The document supplies the values of the header fields and its own title.
@@ -550,7 +550,7 @@ def resolve(config: Config, document: "Document", language: str) -> Dict[str, An
 # ---------------------------------------------------------------------------
 
 
-def resolve_fonts(fonts: Dict[str, Any]) -> Dict[str, Any]:
+def resolve_fonts(fonts: dict[str, Any]) -> dict[str, Any]:
     default = DEFAULT_CONFIG["fonts"]
     serif = _font_stack(fonts.get("serif"), "fonts.serif", default["serif"])
     sans = _font_stack(fonts.get("sans"), "fonts.sans", default["sans"])
@@ -562,7 +562,7 @@ def resolve_fonts(fonts: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _font_stack(value: Any, field: str, fallback: Optional[List[str]] = None) -> List[str]:
+def _font_stack(value: Any, field: str, fallback: list[str] | None = None) -> list[str]:
     """One font name or a fallback stack of them, however it was written."""
     if value is None:
         if fallback is None:
@@ -578,12 +578,12 @@ def _font_stack(value: Any, field: str, fallback: Optional[List[str]] = None) ->
 
 
 def _resolve_wordmark(
-    wordmark: Dict[str, Any],
-    fonts: Dict[str, Any],
-    palette: Dict[str, str],
+    wordmark: dict[str, Any],
+    fonts: dict[str, Any],
+    palette: dict[str, str],
     mark_width: float,
     band_ink: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """How the brand name is set when there is no logo file.
 
     A letterhead with nothing but a name on it is a letterhead, and for a great
@@ -611,10 +611,10 @@ def _resolve_wordmark(
 
 def _resolve_tagline(
     tagline: Any,
-    fonts: Dict[str, Any],
+    fonts: dict[str, Any],
     mark_width: float,
     band_muted: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """The line under the mark, written either as a string or in full.
 
     It prints on page one only, so unlike the wordmark it needs one colour, and
@@ -653,7 +653,7 @@ def _resolve_tagline(
     }
 
 
-def _resolve_border(border: Dict[str, Any], palette: Dict[str, str]) -> Dict[str, Any]:
+def _resolve_border(border: dict[str, Any], palette: dict[str, str]) -> dict[str, Any]:
     """The rule around the paper, and which of its four sides are drawn."""
     return {
         "width": units.to_points(border["width"], "page.border.width"),
@@ -663,7 +663,7 @@ def _resolve_border(border: Dict[str, Any], palette: Dict[str, str]) -> Dict[str
     }
 
 
-def _resolve_background(background: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_background(background: dict[str, Any]) -> dict[str, Any]:
     """The picture behind the page, and where it is drawn.
 
     The file itself is not opened here — like the logo it is staged into the
@@ -700,7 +700,7 @@ def _resolve_background(background: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _resolve_typography(typography: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_typography(typography: dict[str, Any]) -> dict[str, Any]:
     headings = typography.get("headings") or {}
     return {
         "size": units.to_points(typography["size"], "typography.size"),
@@ -723,7 +723,7 @@ def _resolve_typography(typography: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _resolve_images(images: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_images(images: dict[str, Any]) -> dict[str, Any]:
     width = images["width"]
     if isinstance(width, str) and width.strip().lower() in ("auto", "natural"):
         # None, rather than 1.0: an image with no width of its own is left at
@@ -746,8 +746,8 @@ def _resolve_images(images: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _resolve_header(
-    header: Dict[str, Any], document: "Any", palette: Dict[str, str]
-) -> Dict[str, Any]:
+    header: dict[str, Any], document: Any, palette: dict[str, str]
+) -> dict[str, Any]:
     fields = header["fields"]
     when_empty = str(fields.get("when_empty", "rule")).lower()
     if when_empty not in ("rule", "blank", "hide"):
@@ -756,7 +756,7 @@ def _resolve_header(
             f"got {fields['when_empty']!r}"
         )
 
-    items: List[Dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for index, item in enumerate(fields.get("items") or []):
         where = f"header.fields.items[{index}]"
         if not isinstance(item, dict):
@@ -823,11 +823,11 @@ def _resolve_header(
 
 
 def _resolve_running(
-    running: Dict[str, Any],
-    strings: Dict[str, Any],
-    brand: Dict[str, Any],
-    document: "Any",
-) -> Dict[str, Any]:
+    running: dict[str, Any],
+    strings: dict[str, Any],
+    brand: dict[str, Any],
+    document: Any,
+) -> dict[str, Any]:
     template = running.get("format") or strings.get(
         "running_header", "{title} · page {page} of {pages}"
     )
@@ -854,7 +854,7 @@ def _resolve_running(
     }
 
 
-def _resolve_footer(footer: Dict[str, Any], palette: Dict[str, str]) -> Dict[str, Any]:
+def _resolve_footer(footer: dict[str, Any], palette: dict[str, str]) -> dict[str, Any]:
     pages = str(footer.get("pages", "last")).lower()
     if pages not in ("last", "all"):
         raise ConfigError(
@@ -894,7 +894,7 @@ def _resolve_footer(footer: Dict[str, Any], palette: Dict[str, str]) -> Dict[str
     }
 
 
-def _resolve_footer_column(column: Any, where: str) -> Dict[str, Any]:
+def _resolve_footer_column(column: Any, where: str) -> dict[str, Any]:
     if not isinstance(column, dict):
         raise ConfigError(
             f"{where}: expected a mapping with 'title' and 'rows', got {column!r}"
@@ -909,7 +909,7 @@ def _resolve_footer_column(column: Any, where: str) -> Dict[str, Any]:
     return {"title": title, "rows": rows}
 
 
-def _resolve_footer_row(row: Any, where: str) -> Dict[str, Any]:
+def _resolve_footer_row(row: Any, where: str) -> dict[str, Any]:
     """Expand the three ways a footer row may be written.
 
     ``"Some line"``              a line with no label
@@ -962,7 +962,7 @@ def _resolve_footer_row(row: Any, where: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _as_text(value: Any) -> Optional[str]:
+def _as_text(value: Any) -> str | None:
     if value is None:
         return None
     return value if isinstance(value, str) else str(value)
@@ -993,7 +993,7 @@ def _weight(value: Any, field: str) -> Any:
     )
 
 
-def _sides(value: Any, field: str) -> Dict[str, bool]:
+def _sides(value: Any, field: str) -> dict[str, bool]:
     """Which sides of a border are drawn, however the choice was written."""
     names = value if isinstance(value, (list, tuple)) else [value]
     drawn = {"left": False, "right": False, "top": False, "bottom": False}
@@ -1018,7 +1018,7 @@ def _alignment(value: Any, field: str) -> str:
     return text
 
 
-def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Merge ``override`` into ``base``, recursing into mappings.
 
     Lists replace rather than extend: a user who lists three footer columns
@@ -1044,8 +1044,8 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
 
 
 def _reject_unknown_keys(
-    merged: Dict[str, Any],
-    reference: Dict[str, Any],
+    merged: dict[str, Any],
+    reference: dict[str, Any],
     path: Path,
     prefix: str = "",
 ) -> None:
@@ -1073,7 +1073,7 @@ def _reject_unknown_keys(
             _reject_unknown_keys(value, reference[key], path, prefix=f"{where}.")
 
 
-def _closest(word: str, candidates: List[str]) -> Optional[str]:
+def _closest(word: str, candidates: list[str]) -> str | None:
     import difflib
 
     matches = difflib.get_close_matches(word, candidates, n=1, cutoff=0.7)

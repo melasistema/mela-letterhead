@@ -82,13 +82,16 @@ target-version = "py310"
 # E and F are the defaults, I keeps the import blocks sorted, B catches the
 # mutable-default and loop-variable-capture traps.
 #
-# UP is still absent, and now owes the debt it promised. It would rewrite
-# `Dict[str, Any]` to `dict[str, Any]` and `Optional[str]` to `str | None` in
-# 150 places, which the 3.10 floor finally makes plain rather than conditional
-# on `from __future__ import annotations`. It goes in next, in one commit that
-# does nothing else — mixed into a release that also changes behaviour, a diff
-# that size hides whatever else is in it.
-select = ["E", "F", "I", "B"]
+# UP went in with the 3.10 floor, in a commit that did nothing else: it
+# rewrote `Dict[str, Any]` to `dict[str, Any]` and `Optional[str]` to
+# `str | None` in 170 places, and a diff that size mixed with a behaviour
+# change would hide whatever else was in it.
+#
+# `from __future__ import annotations` stays in every module. UP does not
+# touch it and should not: it is what makes an annotation lazy, and the
+# forward references it allows — `Document` in `config.resolve`, imported
+# only under TYPE_CHECKING — are now unquoted and rely on it.
+select = ["E", "F", "I", "B", "UP"]
 
 [tool.mypy]
 python_version = "3.10"

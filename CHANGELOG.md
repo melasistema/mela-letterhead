@@ -15,7 +15,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and then checked against its own interpreter instead. The gate went on passing
   while it had quietly stopped testing the version the package claimed to
   support. Nothing about a letterhead changes; if you are on 3.9, 0.3.2 remains
-  installable and works.
+  installable and works. The annotations throughout the package moved to the
+  spellings the new floor allows — `dict[str, Any]`, `str | None` — which is
+  why the diff for this release is larger than what it does.
 - A table's column widths are computed with the two per-column lists paired
   strictly. They have always been the same length and still are, so no table
   moves — but pairing them loosely meant a length that had drifted would have

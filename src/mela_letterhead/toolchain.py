@@ -10,8 +10,9 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Sequence, Tuple
+from typing import NamedTuple
 
 from .errors import ToolchainError
 
@@ -58,8 +59,8 @@ class Tool(NamedTuple):
     """An external program, found or not."""
 
     name: str
-    path: Optional[str]
-    version: Optional[str]
+    path: str | None
+    version: str | None
 
     @property
     def available(self) -> bool:
@@ -104,7 +105,7 @@ def too_old(tool: Tool) -> bool:
     return _version_tuple(tool.version) < _version_tuple(minimum)
 
 
-def run(command: Sequence[str], cwd: Optional[Path] = None) -> str:
+def run(command: Sequence[str], cwd: Path | None = None) -> str:
     """Run ``command``, returning its standard output.
 
     A non-zero exit becomes a :class:`ToolchainError` carrying whatever the
@@ -141,7 +142,7 @@ def run(command: Sequence[str], cwd: Optional[Path] = None) -> str:
     return completed.stdout
 
 
-def typst_fonts(font_paths: Sequence[Path] = ()) -> List[str]:
+def typst_fonts(font_paths: Sequence[Path] = ()) -> list[str]:
     """Every font family Typst can see, including any extra font paths."""
     command = ["typst", "fonts"]
     for path in font_paths:
@@ -153,7 +154,7 @@ def typst_fonts(font_paths: Sequence[Path] = ()) -> List[str]:
     return sorted({line.strip() for line in output.splitlines() if line.strip()})
 
 
-def missing_fonts(wanted: Sequence[Sequence[str]], available: Sequence[str]) -> List[List[str]]:
+def missing_fonts(wanted: Sequence[Sequence[str]], available: Sequence[str]) -> list[list[str]]:
     """Return the font stacks of which not one font is installed.
 
     A stack is fine as long as *some* entry resolves: that is what a fallback
@@ -168,7 +169,7 @@ def missing_fonts(wanted: Sequence[Sequence[str]], available: Sequence[str]) -> 
     ]
 
 
-def _read_version(path: str) -> Optional[str]:
+def _read_version(path: str) -> str | None:
     try:
         completed = subprocess.run(
             [path, "--version"],
@@ -186,6 +187,6 @@ def _read_version(path: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
-def _version_tuple(version: str) -> Tuple[int, ...]:
+def _version_tuple(version: str) -> tuple[int, ...]:
     """A dotted version as numbers, so that 0.9 sorts below 0.12."""
     return tuple(int(part) for part in re.findall(r"\d+", version))

@@ -29,7 +29,7 @@ from __future__ import annotations
 import datetime as _datetime
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -61,7 +61,7 @@ class Document:
     def __init__(
         self,
         path: Path,
-        metadata: Dict[str, Any],
+        metadata: dict[str, Any],
         body: str,
         date_format: str = "%Y-%m-%d",
     ) -> None:
@@ -73,7 +73,7 @@ class Document:
     # -- construction -----------------------------------------------------
 
     @classmethod
-    def load(cls, path: Path, date_format: str = "%Y-%m-%d") -> "Document":
+    def load(cls, path: Path, date_format: str = "%Y-%m-%d") -> Document:
         path = Path(path)
         try:
             text = path.read_text(encoding="utf-8")
@@ -109,7 +109,7 @@ class Document:
         return self.title
 
     @property
-    def language(self) -> Optional[str]:
+    def language(self) -> str | None:
         """The document's language, if it declares one."""
         value = self.metadata.get("lang") or self.metadata.get("language")
         if isinstance(value, str) and value.strip():
@@ -117,7 +117,7 @@ class Document:
         return None
 
     @property
-    def author(self) -> Optional[str]:
+    def author(self) -> str | None:
         value = self.metadata.get("author")
         return value.strip() if isinstance(value, str) and value.strip() else None
 
@@ -137,7 +137,7 @@ class Document:
 
     # -- user keys --------------------------------------------------------
 
-    def field(self, key: str) -> Optional[str]:
+    def field(self, key: str) -> str | None:
         """The front-matter value for ``key``, as a string, or ``None``.
 
         Dates are formatted rather than stringified: YAML turns an unquoted
@@ -153,7 +153,7 @@ class Document:
                 return self._stringify(self.metadata[alternative])
         return None
 
-    def _stringify(self, value: Any) -> Optional[str]:
+    def _stringify(self, value: Any) -> str | None:
         if value is None:
             return None
         if isinstance(value, bool):
@@ -165,7 +165,7 @@ class Document:
         text = str(value).strip()
         return text or None
 
-    def _first_heading(self) -> Optional[str]:
+    def _first_heading(self) -> str | None:
         for line in self.body.splitlines():
             match = re.match(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$", line)
             if match and match.group(1).strip():
@@ -177,7 +177,7 @@ class Document:
         return f"<Document {self.path.name!r}>"
 
 
-def split_front_matter(text: str, path: Optional[Path] = None) -> "tuple[Dict[str, Any], str]":
+def split_front_matter(text: str, path: Path | None = None) -> tuple[dict[str, Any], str]:
     """Split a Markdown source into its front matter and its body.
 
     The body keeps its original line numbering nowhere — it is re-emitted from
@@ -220,9 +220,9 @@ def split_front_matter(text: str, path: Optional[Path] = None) -> "tuple[Dict[st
 
 def discover(
     source: Path,
-    include: List[str],
-    exclude: List[str],
-) -> List[Path]:
+    include: list[str],
+    exclude: list[str],
+) -> list[Path]:
     """Find the Markdown sources under ``source`` matching ``include``.
 
     Patterns are matched against the path relative to ``source``, so a pattern
@@ -231,7 +231,7 @@ def discover(
     if not source.is_dir():
         raise DocumentError(f"{source}: no such directory")
 
-    found: Dict[Path, None] = {}
+    found: dict[Path, None] = {}
     for pattern in include:
         for path in sorted(source.glob(pattern)):
             if path.is_file():

@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -127,7 +127,7 @@ def normalise_tag(tag: str) -> str:
     return "-".join(canonical)
 
 
-def split_tag(tag: str) -> "tuple[str, Optional[str]]":
+def split_tag(tag: str) -> tuple[str, str | None]:
     """Split a language tag into the ``lang`` and ``region`` Typst expects."""
     parts = re.split(r"[-_]", tag.strip())
     language = parts[0].lower()
@@ -139,15 +139,15 @@ def split_tag(tag: str) -> "tuple[str, Optional[str]]":
     return language, region
 
 
-def fallback_chain(language: str, default: str = DEFAULT_LANGUAGE) -> List[str]:
+def fallback_chain(language: str, default: str = DEFAULT_LANGUAGE) -> list[str]:
     """Languages to try, in order, when looking a string up.
 
     ``pt-BR`` with a project default of ``it`` yields
     ``['pt-BR', 'pt', 'it', 'en']`` — each entry tried before the next.
     """
-    chain: List[str] = []
+    chain: list[str] = []
 
-    def add(tag: Optional[str]) -> None:
+    def add(tag: str | None) -> None:
         if not tag:
             return
         canonical = normalise_tag(tag)
@@ -164,7 +164,7 @@ def fallback_chain(language: str, default: str = DEFAULT_LANGUAGE) -> List[str]:
     return chain
 
 
-def pick(language_map: Dict[str, Any], chain: List[str]) -> Any:
+def pick(language_map: dict[str, Any], chain: list[str]) -> Any:
     """Choose a translation from ``language_map`` along the fallback ``chain``.
 
     Falls back to the first entry in the map rather than to nothing: a label in
@@ -182,7 +182,7 @@ def pick(language_map: Dict[str, Any], chain: List[str]) -> Any:
     return next(iter(language_map.values()))
 
 
-def localise(value: Any, chain: List[str], schema: Any = UNKNOWN) -> Any:
+def localise(value: Any, chain: list[str], schema: Any = UNKNOWN) -> Any:
     """Recursively replace every language map in ``value`` with one translation.
 
     ``schema`` is the matching node of the written-shape schema; pass
@@ -219,13 +219,13 @@ def _member(schema: Any, key: Any) -> Any:
     return UNKNOWN
 
 
-def load_locale(chain: List[str], project_locales: Optional[Path] = None) -> Dict[str, Any]:
+def load_locale(chain: list[str], project_locales: Path | None = None) -> dict[str, Any]:
     """Merge the locale packs for ``chain``, most specific last.
 
     Project packs override the built-in ones for the same language, so a project
     can correct a shipped string without forking the package.
     """
-    merged: Dict[str, Any] = {}
+    merged: dict[str, Any] = {}
     for tag in reversed(chain):
         for directory in (_BUILTIN_LOCALES, project_locales):
             if directory is None:
@@ -234,7 +234,7 @@ def load_locale(chain: List[str], project_locales: Optional[Path] = None) -> Dic
     return merged
 
 
-def available_locales(project_locales: Optional[Path] = None) -> List[str]:
+def available_locales(project_locales: Path | None = None) -> list[str]:
     """Every language tag with a locale pack, built-in or project-local."""
     tags = set()
     for directory in (_BUILTIN_LOCALES, project_locales):
@@ -245,7 +245,7 @@ def available_locales(project_locales: Optional[Path] = None) -> List[str]:
     return sorted(tags)
 
 
-def _read_locale_file(directory: Path, tag: str) -> Dict[str, Any]:
+def _read_locale_file(directory: Path, tag: str) -> dict[str, Any]:
     if not directory.is_dir():
         return {}
     # Match case-insensitively: ``pt-BR.yaml`` and ``pt-br.yaml`` are one file.

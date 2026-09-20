@@ -33,14 +33,15 @@ Two families of measurement are accepted, and each field belongs to exactly one:
 from __future__ import annotations
 
 import re
-from typing import Dict, Tuple, Union
 
 from .errors import ConfigError
 
-Number = Union[int, float]
+# Evaluated when the module is imported rather than deferred like an
+# annotation, so this one needs PEP 604 at runtime — which the 3.10 floor is.
+Number = int | float
 
 #: Points per unit. Typst's point is the PostScript point: 72 to the inch.
-_POINTS_PER_UNIT: Dict[str, float] = {
+_POINTS_PER_UNIT: dict[str, float] = {
     "pt": 1.0,
     "mm": 72.0 / 25.4,
     "cm": 72.0 / 2.54,
@@ -71,7 +72,7 @@ _ALPHA_HINT = (
 _HEX_COLOUR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
 #: Named page sizes, in millimetres, portrait.
-_PAGE_SIZES_MM: Dict[str, Tuple[float, float]] = {
+_PAGE_SIZES_MM: dict[str, tuple[float, float]] = {
     "a3": (297.0, 420.0),
     "a4": (210.0, 297.0),
     "a5": (148.0, 210.0),
@@ -82,7 +83,7 @@ _PAGE_SIZES_MM: Dict[str, Tuple[float, float]] = {
 }
 
 
-def to_points(value: Union[str, Number], field: str, positive: bool = True) -> float:
+def to_points(value: str | Number, field: str, positive: bool = True) -> float:
     """Return ``value`` in points.
 
     A bare number is read as points, so ``11`` and ``"11pt"`` agree.
@@ -120,7 +121,7 @@ def _signed(points: float, written: object, field: str, positive: bool) -> float
     return points
 
 
-def to_em(value: Union[str, Number], field: str) -> float:
+def to_em(value: str | Number, field: str) -> float:
     """Return ``value`` as a multiple of the font size.
 
     ``0.82`` and ``"0.82em"`` are the same thing. Absolute units are rejected
@@ -144,7 +145,7 @@ def to_em(value: Union[str, Number], field: str) -> float:
     return float(match.group(1))
 
 
-def to_ratio(value: Union[str, Number], field: str) -> float:
+def to_ratio(value: str | Number, field: str) -> float:
     """Return ``value`` as a fraction of the space available.
 
     ``"60%"`` and ``0.6`` are the same thing. A bare number is a fraction and
@@ -180,7 +181,7 @@ def to_ratio(value: Union[str, Number], field: str) -> float:
 
 
 def to_share(
-    value: Union[str, Number], field: str, whole: float, positive: bool = True
+    value: str | Number, field: str, whole: float, positive: bool = True
 ) -> float:
     """Return ``value`` as a fraction of ``whole``.
 
@@ -215,7 +216,7 @@ def to_share(
     return to_ratio(value, field)
 
 
-def to_alpha(value: Union[str, Number], field: str) -> float:
+def to_alpha(value: str | Number, field: str) -> float:
     """Return ``value`` as a share from nought to one.
 
     ``"35%"`` and ``0.35`` are the same thing. Unlike :func:`to_ratio`, nought
@@ -233,7 +234,7 @@ def to_alpha(value: Union[str, Number], field: str) -> float:
 
 
 def _plain_number(
-    value: Union[str, Number], field: str, hint: str = _SHARE_HINT
+    value: str | Number, field: str, hint: str = _SHARE_HINT
 ) -> float:
     """A share with no bound on its sign, for tracking and the like."""
     if isinstance(value, bool):
@@ -258,7 +259,7 @@ def to_colour(value: object, field: str) -> str:
     return value
 
 
-def page_size(value: object, field: str) -> Tuple[float, float]:
+def page_size(value: object, field: str) -> tuple[float, float]:
     """Return ``(width, height)`` in points for a named or explicit page size.
 
     Accepts a name (``a4``, ``letter``, optionally suffixed ``-landscape``) or a

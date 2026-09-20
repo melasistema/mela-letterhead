@@ -6,8 +6,8 @@ import argparse
 import os
 import shutil
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional, Sequence
 
 from . import __version__, builder, i18n, toolchain
 from . import config as config_module
@@ -377,7 +377,7 @@ def _where(directory: Path) -> str:
     return _bold(_relative(directory))
 
 
-def _relative(path: Optional[Path]) -> str:
+def _relative(path: Path | None) -> str:
     """Show a path relative to the working directory when that is shorter."""
     if path is None:
         return "?"
@@ -479,7 +479,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     _harden_output()
     parser = build_parser()
     args = parser.parse_args(argv)
