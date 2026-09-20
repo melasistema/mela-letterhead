@@ -441,15 +441,20 @@ class TestCheckAndTheProjectSchema:
     def test_a_stale_copy_is_reported(self, tmp_path, capsys):
         project = make_project(tmp_path)
         (project / cli.SCHEMA_FILENAME).write_text('{"title": "old"}\n', encoding="utf-8")
-        status, out = (
-            cli.main(["check", "-c", str(project / "letterhead.yaml")]),
-            capsys.readouterr().out,
-        )
+        cli.main(["check", "-c", str(project / "letterhead.yaml")])
+        out = capsys.readouterr().out
         assert "written by another version" in out
         assert "mela-letterhead schema" in out
+
+    @needs_toolchain
+    def test_saying_so_does_not_fail_the_run(self, tmp_path, capsys):
         # An editor's convenience, not an input to the page: saying so must not
-        # turn a sound letterhead into a failing one.
-        assert status == 0
+        # turn a sound letterhead into a failing one. Split from the test above
+        # so that the report itself is still checked on a machine with no
+        # toolchain, where `check` exits 1 for reasons of its own.
+        project = make_project(tmp_path)
+        (project / cli.SCHEMA_FILENAME).write_text('{"title": "old"}\n', encoding="utf-8")
+        assert cli.main(["check", "-c", str(project / "letterhead.yaml")]) == 0
 
     def test_a_current_copy_says_nothing(self, tmp_path, capsys):
         project = make_project(tmp_path)
@@ -574,7 +579,14 @@ class TestCheckAndProfiles:
         out = capsys.readouterr().out
         assert status == 1
         assert "palette.accent" in out
-        # And the same letterhead with no profile asked for is sound.
+
+    @needs_toolchain
+    def test_and_the_same_letterhead_without_it_is_sound(self, tmp_path, capsys):
+        # The other half of the test above: what the profile breaks, only the
+        # profile breaks. Marked because a clean bill of health needs the
+        # toolchain, while being told what is wrong does not.
+        config = SOUND + "profiles:\n  draft:\n    palette:\n      accent: dark red\n"
+        project = make_project(tmp_path, config=config)
         assert cli.main(["check", "-c", str(project / "letterhead.yaml")]) == 0
 
 

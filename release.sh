@@ -96,6 +96,18 @@ done
 
 cd "$(git rev-parse --show-toplevel)"
 
+# The checks below are found on PATH, and the commonest way to reach this
+# script is from a shell where the virtual environment was never activated —
+# which is not an error anywhere, so every one of them quietly says CI will do
+# it instead and the release goes out with nothing checked at all. If the
+# project has its own environment and none is active, use it. An environment
+# that *is* active is left alone: somebody testing against another Python is
+# doing it on purpose.
+if [ -z "${VIRTUAL_ENV:-}" ] && [ -x .venv/bin/python ]; then
+    PATH="$PWD/.venv/bin:$PATH"
+    export PATH
+fi
+
 # ------------------------------------------------------------ is this sane?
 
 step "Where we are"
@@ -322,9 +334,19 @@ fi
 # which is how `pipx install` carries it and how `init` hands a project its own
 # copy. A release that ships a setting the schema has never heard of underlines
 # that setting, in red, in the editor of everybody who takes the upgrade.
-python3 tools/generate_schema.py --check >/dev/null \
-    || die "the schema is stale — run: python3 tools/generate_schema.py"
-good "the schema is up to date"
+#
+# The generator imports the package, so it needs an interpreter with PyYAML in
+# it. That is asked separately, because the two failures read the same from a
+# non-zero exit and mean opposite things: a stale schema must stop the release,
+# while an interpreter that cannot import is this script's own setup problem
+# and is reported as such rather than as a lie about the file.
+if python3 -c 'import yaml' >/dev/null 2>&1; then
+    python3 tools/generate_schema.py --check >/dev/null \
+        || die "the schema is stale — run: python3 tools/generate_schema.py"
+    good "the schema is up to date"
+else
+    note "python3 here has no PyYAML; CI will check the schema instead"
+fi
 
 if command -v mypy >/dev/null 2>&1; then
     mypy --no-error-summary || die "mypy has something to say"
