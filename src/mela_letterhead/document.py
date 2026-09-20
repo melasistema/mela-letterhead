@@ -22,6 +22,21 @@ key is yours, and reaches the letterhead through a header field that names it::
 
 So the set of header fields is not fixed at four, or at any number: it is
 whatever the brand's paper happens to have on it.
+
+Two of the tool's own keys are about the letterhead rather than about the
+document. ``profile:`` names one of the project's profiles, and ``letterhead:``
+is a block of settings this one document changes::
+
+    ---
+    title: Offer — phase two
+    profile: draft
+    letterhead:
+      palette:
+        accent: "#a4262c"
+    ---
+
+Both are merged in :func:`~mela_letterhead.config.resolve`, which is where the
+letterhead's written shape is settled for one document.
 """
 
 from __future__ import annotations
@@ -37,6 +52,10 @@ from . import yaml_loader
 from .errors import DocumentError
 
 #: Front-matter keys the tool reads itself. Everything else is a header field.
+#:
+#: ``letterhead`` and ``profile`` are here for a reason worth knowing: without
+#: them a header field could name ``letterhead`` and stringify a whole mapping
+#: of settings onto the page.
 RESERVED_KEYS = frozenset(
     {
         "title",
@@ -46,6 +65,8 @@ RESERVED_KEYS = frozenset(
         "language",
         "output",
         "author",
+        "letterhead",
+        "profile",
     }
 )
 
@@ -128,6 +149,46 @@ class Document:
         if isinstance(value, str) and value.strip():
             return Path(value.strip()).stem
         return self.path.stem
+
+    @property
+    def overrides(self) -> dict[str, Any]:
+        """The ``letterhead:`` block — what this document alone changes.
+
+        Written exactly as ``letterhead.yaml`` is written, because it is merged
+        onto it in that shape and localised afterwards: a value here may be a
+        language map like any other.
+
+        Nothing is validated here. The names and the values are the schema's
+        business, and are refused where the profile's are, by the same
+        function, so that one mistyped setting reads the same wherever it was
+        written.
+        """
+        value = self.metadata.get("letterhead")
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            raise DocumentError(
+                f"{self.path}: 'letterhead' must be a mapping of settings, "
+                f"got {value!r}",
+                hint="It is written like the file it overrides:\n"
+                "  letterhead:\n"
+                "    palette:\n"
+                "      accent: '#a4262c'",
+            )
+        return value
+
+    @property
+    def profile(self) -> str | None:
+        """The profile this document asks for, if it asks for one."""
+        value = self.metadata.get("profile")
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value.strip():
+            raise DocumentError(
+                f"{self.path}: 'profile' must be the name of a profile, got {value!r}",
+                hint="Profiles are defined under 'profiles:' in letterhead.yaml.",
+            )
+        return value.strip()
 
     @property
     def slug(self) -> str:

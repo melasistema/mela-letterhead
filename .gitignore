@@ -32,10 +32,17 @@ htmlcov/
 # A build writes its PDF beside the source, so running the scaffold anywhere in
 # the tree drops one here. Nothing this project ships is a PDF.
 *.pdf
-# What `mela-letterhead init .` writes if it is ever run at the repo root.
+# What `mela-letterhead init .` writes if it is ever run at the repo root — the
+# obvious way to try a change by hand. Every one of these, or trying the tool
+# leaves untracked files behind for the next `git add -A` to sweep up. Keep it
+# in step with `cli.command_init`: `assets/` here is the repo's own directory,
+# holding the README screenshots, so the scaffold's files are named rather than
+# the directory ignored.
 /letterhead.yaml
+/letterhead.schema.json
 /example-letter.md
 /assets/logo.*
+/assets/plate-*.svg
 
 # ── Agents ───────────────────────────────────────────────
 .antigravitycli/

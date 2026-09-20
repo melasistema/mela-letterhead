@@ -180,11 +180,33 @@ Everything checks out.
 | Command | What it does |
 | --- | --- |
 | `init [dir]` | Write a working letterhead into a directory. `--force` overwrites. |
-| `build [files…]` | Build documents into PDFs. `--keep-build` leaves the intermediates. |
-| `check` | Report on the toolchain, configuration, fonts and documents, without building. |
+| `build [files…]` | Build documents into PDFs. `--keep-build` leaves the intermediates, `--watch` rebuilds on every save, `--profile` applies a [profile](#profiles). |
+| `check` | Report on the toolchain, configuration, fonts and documents, without building. `--profile` checks it as that profile leaves it. |
+| `schema [dir]` | Write this version's [editor schema](#the-letterhead-setting-by-setting) beside a letterhead. `init` writes it too; run this after upgrading. |
 
 `build` on its own builds every document the configuration selects; name a file
 — `mela-letterhead build offer.md` — to build just that one.
+
+### Watching
+
+A build takes about two tenths of a second, which is short enough that the
+sensible way to design a letterhead is to leave it running:
+
+```bash
+mela-letterhead build --watch
+```
+
+It builds once, then builds again every time anything it read changes — the
+document, `letterhead.yaml`, a locale pack, the logo, the page background, or
+any picture the document prints. Write a new `.md` beside the others and it is
+picked up without being named. A PDF viewer that reloads a file it is showing —
+most of them do — turns this into the page redrawing itself as you type.
+
+A build that fails does not end the session: the error is printed, the file that
+caused it stays watched, and saving it again is what makes the error go away.
+That goes for `letterhead.yaml` too — half-typed YAML costs an error and the
+previous configuration is kept until the file reads again. Ctrl-C stops it, and
+stopping it on purpose is not a failure: it exits 0.
 
 ---
 
@@ -336,7 +358,7 @@ Prepared for the **Exampleton Water Board**: a condition survey of the four
 rooftop collection points on Example Street.
 ```
 
-Five keys belong to the tool:
+Seven keys belong to the tool:
 
 | Key | Meaning |
 | --- | --- |
@@ -345,8 +367,11 @@ Five keys belong to the tool:
 | `lang` | This document's language. Falls back to `language:` in the configuration. |
 | `author` | Written into the PDF metadata. Falls back to the brand. |
 | `output` | Name of the PDF to write. Falls back to the source filename. |
+| `profile` | A profile from `profiles:` — see [Profiles](#profiles) below. |
+| `letterhead` | Settings this one document changes. Same section. |
 
-`running_title` and `language` are accepted as spellings of the middle two.
+`running_title` and `language` are accepted as spellings of `running-title` and
+`lang`.
 
 Everything else — `type`, `reference`, `date`, `validity` above — is **yours**,
 and reaches the paper through a header field that names it. Kebab-case and
@@ -358,11 +383,124 @@ snake_case are the same key, so `valid-until` and `valid_until` both work.
 
 ---
 
+## Profiles
+
+One letterhead, printed more than one way. A profile is a named set of changes
+to `letterhead.yaml`, written in the same shape as the part it replaces:
+
+```yaml
+profiles:
+  draft:
+    palette:
+      accent: "#a4262c"          # everything accented turns red
+    brand:
+      tagline: "DRAFT — not for circulation"
+    page:
+      background:
+        image: assets/draft.png  # a watermark, on every page
+        pages: all
+        veil: 0.55
+  final:
+    pdf:
+      standard: [a-3b, ua-1]     # archival, and readable by a screen reader
+```
+
+```bash
+mela-letterhead build --profile draft
+mela-letterhead build --profile final
+```
+
+The flag applies to every document in the run, which is the case profiles exist
+for: you are about to send a set of papers out and they should all say the same
+thing about themselves. A document that is *always* a draft says so in its own
+front matter instead:
+
+```yaml
+---
+title: Offer — phase two
+profile: draft
+---
+```
+
+**The flag wins over the front matter.** `--profile final` is something you
+typed one second ago about this run, and a document that could veto it would
+break the only use the flag has.
+
+### One document's own settings
+
+Below a profile there is a third place to change the letterhead, for the paper
+that is a one-off rather than a category — a report that wants no footer band,
+a letter that wants its own accent:
+
+```yaml
+---
+title: Condition survey
+letterhead:
+  footer:
+    show: false
+  header:
+    height: 30mm
+---
+```
+
+Anything `letterhead.yaml` accepts goes in there, translations included. The
+order is: the file, then the profile, then this — so a document's own block
+beats everything, and a setting none of them mention keeps its default. A name
+the schema does not know is refused where it was written, with the same
+suggestion `check` gives for the file itself:
+
+```
+Error: example-letter.md: unknown setting 'letterhead.palete'
+
+  Did you mean 'letterhead.palette'?
+```
+
+`check` shows what is going to happen before it happens. It lists the profiles
+a letterhead defines, names the one `--profile` asked for, and marks every
+document carrying something of its own:
+
+```
+Configuration
+  ✓  letterhead.yaml reads cleanly
+     brand          Acme Studio
+     language       en
+     profiles       draft, final
+     profile        draft  (from --profile)
+
+Documents
+  ✓  example-letter.md  [en] → example-letter.pdf
+  ✓  survey.md          [en] → survey.pdf  (+2 overrides)
+```
+
+---
+
 ## The letterhead, setting by setting
 
 `letterhead.yaml` is commented line by line, so the file itself is the reference.
 What follows is the shape of it, and the handful of settings that are easier to
 get wrong than to guess.
+
+> **Your editor can read this file.** `init` writes a JSON schema beside the
+> letterhead, and the letterhead's first line points at it:
+>
+> ```yaml
+> # yaml-language-server: $schema=letterhead.schema.json
+> ```
+>
+> and that is the whole of the setup. Anything using `yaml-language-server` —
+> VS Code with the Red Hat YAML extension, Neovim, Helix, Zed — will complete
+> the setting names, show the comment from this file as you hover, and underline
+> `pallette:` before you have saved. Without such an editor the line is an inert
+> comment. The schema describes the file as it is written and is deliberately
+> permissive; `mela-letterhead check` is still what says yes.
+>
+> Nothing is downloaded: the schema ships inside the package and is copied into
+> the project, so it works offline and the copy always matches the version
+> installed. After upgrading, `mela-letterhead schema` refreshes it — and in a
+> project made before the schema existed, writes it and tells you the line to
+> add. `check` mentions a copy left behind by an older version, which is worth
+> knowing because the symptom is a setting this release accepts underlined in
+> red by a schema that predates it.
 
 ### The brand
 
@@ -630,6 +768,28 @@ furniture rather than content — and PDF/UA-1 allows no link inside one, so the
 e-mail address and any `link:` you wrote print as plain text. Nothing moves on
 the page; the underline goes, because an underline that is not a link is a lie
 about the page.
+
+### The same source, the same bytes
+
+Two builds of one document are not identical files: Typst writes the creation
+time into the PDF, so the two differ in a handful of bytes. For an archival
+document that is an awkward thing to defend, and for anything checked into a
+repository it is a diff every time.
+
+Set `SOURCE_DATE_EPOCH` to a fixed time — the [convention][repro] the rest of
+the reproducible-builds world already uses — and the output is identical run
+for run:
+
+```bash
+SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) mela-letterhead build
+```
+
+Nothing in the tool implements this: Typst reads the variable from the
+environment it is handed, and the environment is handed straight through. Any
+value works; the commit date is a good one, because it is the date the document
+actually says something about.
+
+[repro]: https://reproducible-builds.org/docs/source-date-epoch/
 
 ---
 
@@ -923,9 +1083,19 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 
 pytest              # the suite
-ruff check src tests
+ruff check src tests tools
 mypy                # strict, against the 3.10 the package claims
+
+python tools/generate_schema.py   # after changing DEFAULT_CONFIG
 ```
+
+`src/mela_letterhead/assets/letterhead.schema.json` is generated from
+`DEFAULT_CONFIG` — the settings, their vocabularies, and the comments beside
+them as the descriptions — and committed, so nobody needs the generator to get
+the schema. It lives inside the package because that is what a `pipx install`
+carries and what `init` copies into a project; nothing fetches it over the
+network. A setting added without regenerating fails `tests/test_schema.py` and
+the `lint` job.
 
 The suite covers unit conversion, language resolution, front matter, the
 Markdown preparation and configuration validation, and finishes with end-to-end

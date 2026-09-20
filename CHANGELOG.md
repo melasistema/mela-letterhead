@@ -6,6 +6,71 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`build --watch`: the page redraws itself while you write.** A build is
+  about two tenths of a second, so the sensible way to design a letterhead is
+  to leave one running. It builds once and then builds again on every save of
+  anything it read — the document, `letterhead.yaml`, a locale pack, the logo,
+  the page background, and every picture the document prints. A document
+  written while it is running is picked up without being named. A failed build
+  does not end the session, which is the whole value of it: the error is
+  printed, the file that caused it stays watched, and saving it again is what
+  makes the error go away. `letterhead.yaml` is the same — half-typed YAML
+  costs an error, not the session, and the previous configuration is kept until
+  the file reads again. Ctrl-C exits 0, because a watch stopped on purpose is
+  not a failure.
+- **`profiles:`, and a per-document `letterhead:` block.** One letterhead,
+  printed more than one way. A profile is a named set of changes to
+  `letterhead.yaml`, written in the same shape as the part it replaces —
+  `mela-letterhead build --profile draft` turns the accent red, sets a
+  watermark behind every page and says DRAFT under the mark; `--profile final`
+  asks for PDF/A instead. A document that is always a draft says `profile:
+  draft` in its own front matter, and the flag beats the front matter, because
+  the flag is something you typed one second ago about this run. Below both, a
+  `letterhead:` block in front matter changes the paper for one document alone
+  — the report that wants no footer band. The order is the file, then the
+  profile, then the block, and all three are merged before the language is
+  chosen, so an override may be written per language like anything else.
+- `check --profile` reports what will happen before it happens: the profiles a
+  letterhead defines, which one is active and where it came from, and a mark
+  against every document carrying settings of its own. An override silently not
+  applied is the failure this feature would otherwise have.
+- **A JSON schema for `letterhead.yaml`, and the scaffold points at it.**
+  `mela-letterhead check`'s answer about a mistyped setting, in the editor,
+  before anything is run. `init` writes `letterhead.schema.json` beside the
+  letterhead and the letterhead's first line is a `# yaml-language-server:`
+  comment naming it, which is the whole of the setup for VS Code with the Red
+  Hat YAML extension, Neovim, Helix and Zed: the setting names complete, the
+  comments in the file become the tooltips, and `pallette:` is underlined
+  before it is saved. Without such an editor the line is an inert comment.
+- **Nothing is fetched.** The schema travels inside the package, the modeline
+  is a relative path, and the copy in a project is the one belonging to the
+  version that wrote it — so the editor helps with no network, the project
+  stays movable, and there is no URL anywhere that has to keep resolving for
+  this to work.
+- `mela-letterhead schema` writes that copy into a project. `init` already
+  does; this is for the two cases it cannot serve — a project made before the
+  schema existed, which is also told the one line to add, and a project whose
+  copy is a release behind after an upgrade. `check` says so when it finds one
+  of those, without failing over it: a schema is the editor's business and
+  changes nothing about the page.
+- The schema is generated from `DEFAULT_CONFIG` by `tools/generate_schema.py`
+  and committed inside the package, so nobody needs the generator to get it.
+  Its descriptions are the comments in `config.py` — they were already written
+  in the register a tooltip wants — and every vocabulary in it is read from the
+  module, so a standard added to `PDF_STANDARDS` reaches the schema with no
+  second edit. A stale copy fails CI and the suite.
+- A build now reports what went into it. `BuildResult.inputs` is every file it
+  read on the user's disk, in staging order, which is what lets a watch rebuild
+  one document out of twenty when one of its pictures changes.
+- Documented what it takes to get the same bytes out of the same source:
+  `SOURCE_DATE_EPOCH`, which Typst reads from the environment it is handed.
+  Nothing in the tool had to change — the environment already passed through —
+  but an archival PDF that differs between two builds of one document is an
+  awkward thing to defend, so it is written down beside `pdf.standard` and
+  tested.
+
 ## [0.4.0] — 2026-09-20
 
 ### Added

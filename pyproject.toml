@@ -42,7 +42,18 @@ classifiers = [
 dependencies = ["PyYAML>=6.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-cov", "ruff", "mypy", "types-PyYAML", "build"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "types-PyYAML",
+    "build",
+    # Used by `tests/test_schema.py` to hold the generated schema to the
+    # same answers `check` gives. The tests skip without it rather than
+    # failing, so a stale environment costs coverage and not a red run.
+    "jsonschema",
+]
 
 [project.urls]
 Homepage = "https://github.com/melasistema/mela-letterhead"
@@ -61,6 +72,9 @@ where = ["src"]
 mela_letterhead = [
     "assets/*.typ",
     "assets/*.template",
+    # The JSON Schema. It ships in the wheel because `init` copies it into the
+    # project and nothing fetches it from anywhere.
+    "assets/*.json",
     "assets/scaffold/*",
     "locales/*.yaml",
 ]

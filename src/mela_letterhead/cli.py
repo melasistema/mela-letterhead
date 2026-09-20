@@ -6,7 +6,8 @@ import argparse
 import os
 import shutil
 import sys
-from collections.abc import Sequence
+import time
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from . import __version__, builder, i18n, toolchain
@@ -23,6 +24,26 @@ SCAFFOLD_PLATES = (
     "plate-condition.svg",
     "plate-roof-plan.svg",
 )
+
+#: The JSON Schema, as it ships inside the package.
+SCHEMA_SOURCE = Path(__file__).parent / "assets" / "letterhead.schema.json"
+
+#: And what it is called once it has been copied into a project. The scaffold's
+#: first line names it by this, as a path relative to the letterhead, so the
+#: two have to agree and a project stays movable: no URL to fetch, no absolute
+#: path to go stale when the directory is renamed or handed to somebody else.
+SCHEMA_FILENAME = "letterhead.schema.json"
+
+#: How often `build --watch` looks. A build is around two tenths of a second,
+#: so the poll is the whole of the latency between saving and seeing; a quarter
+#: of a second costs a few dozen `stat` calls and nothing else.
+WATCH_INTERVAL = 0.25
+
+#: How long to wait after a change before building. An editor commonly writes a
+#: temporary file and renames it over the original, which is two events a fifth
+#: of a second apart; without this pause that is two builds.
+WATCH_SETTLE = 0.15
+
 
 def _use_colour() -> bool:
     """Whether to paint this line.
@@ -131,6 +152,10 @@ def command_init(args: argparse.Namespace) -> int:
 
     files = [
         (SCAFFOLD / "letterhead.yaml", target / config_module.CONFIG_FILENAME),
+        # What the letterhead's first line points at, which is why it is written
+        # here rather than fetched: an editor reads it off the disk, offline,
+        # and it is the schema belonging to the version that wrote the file.
+        (SCHEMA_SOURCE, target / SCHEMA_FILENAME),
         (SCAFFOLD / "logo.svg", target / "assets" / "logo.svg"),
         (SCAFFOLD / "example-letter.md", target / "example-letter.md"),
         # The plates the example document prints. Nothing else needs them.
@@ -170,15 +195,91 @@ def command_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _schema_is_current(path: Path) -> bool:
+    """Whether a project's copy of the schema is this version's."""
+    try:
+        return path.read_bytes() == SCHEMA_SOURCE.read_bytes()
+    except OSError:
+        return False
+
+
+def _points_at_schema(path: Path) -> bool:
+    """Whether a letterhead already tells an editor where its schema is.
+
+    Any modeline counts, not only one naming our file: somebody who has pointed
+    their editor somewhere on purpose does not need advice about it.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return True
+    return any("yaml-language-server" in line for line in text.splitlines())
+
+
+def command_schema(args: argparse.Namespace) -> int:
+    """Write this version's JSON Schema into a project, for the editor to read.
+
+    `init` already writes it, so this is for the two cases `init` cannot serve:
+    a project made before the schema existed, and one whose copy is a release
+    behind after an upgrade. It overwrites without asking because the file is
+    generated, nobody edits it, and refusing to would make the ordinary case
+    two commands.
+    """
+    target = Path(args.directory).resolve()
+    target.mkdir(parents=True, exist_ok=True)
+    destination = target / SCHEMA_FILENAME
+
+    existed = destination.is_file()
+    was_current = existed and _schema_is_current(destination)
+    shutil.copy2(SCHEMA_SOURCE, destination)
+
+    if not existed:
+        print(f"  {_green('created')}  {_relative(destination)}")
+    elif was_current:
+        print(f"  {_tick()}  {_relative(destination)} was already this version's")
+    else:
+        print(f"  {_green('updated')}  {_relative(destination)}")
+
+    config_path = target / config_module.CONFIG_FILENAME
+    if config_path.is_file() and not _points_at_schema(config_path):
+        print()
+        print(f"{_relative(config_path)} does not point at it yet. Add this as its first line:")
+        print()
+        print(f"  {_bold(f'# yaml-language-server: $schema={SCHEMA_FILENAME}')}")
+    return 0
+
+
 def command_build(args: argparse.Namespace) -> int:
     config = _load_config(args)
     sources = [Path(path) for path in args.documents] if args.documents else None
 
+    profile = getattr(args, "profile", None)
+
+    if getattr(args, "watch", False):
+        return _watch(config, sources, args.keep_build, profile)
+
+    _build_once(config, sources, args.keep_build, profile)
+    return 0
+
+
+def _build_once(
+    config: Config,
+    sources: list[Path] | None,
+    keep_build: bool,
+    profile: str | None = None,
+) -> list[builder.BuildResult]:
+    """Build everything once and report on it.
+
+    Returns the results rather than a status, because the one caller that has
+    anything to do with them is `--watch`, which builds again from what they
+    say the last build read.
+    """
     results = builder.build_all(
         config,
         sources=sources,
-        keep_build=args.keep_build,
+        keep_build=keep_build,
         on_start=lambda path: print(f"  {_dim('building')}  {_relative(path)}"),
+        profile=profile,
     )
 
     print()
@@ -195,9 +296,174 @@ def command_build(args: argparse.Namespace) -> int:
         f"{count} document{'' if count == 1 else 's'} written to "
         f"{_where(config.output_dir)}."
     )
-    if args.keep_build:
+    if keep_build:
         print(_dim(f"Intermediates kept in {_relative(config.build_dir)}."))
-    return 0
+    return results
+
+
+# ---------------------------------------------------------------------------
+# watching
+# ---------------------------------------------------------------------------
+
+
+def _watch(
+    config: Config,
+    sources: list[Path] | None,
+    keep_build: bool,
+    profile: str | None = None,
+) -> int:
+    """Build, and build again every time one of the files it read changes.
+
+    A failed build does not end the session, which is the whole value of
+    watching: the error is reported, the file that caused it stays watched, and
+    saving it again is what makes the error go away. That is why the build is
+    caught here rather than by `main`.
+    """
+    results: list[builder.BuildResult] = []
+    build = True
+    first = True
+
+    try:
+        while True:
+            if build:
+                try:
+                    results = _build_once(config, sources, keep_build, profile)
+                except LetterheadError as error:
+                    _report(error)
+                if first:
+                    print()
+                    print(_dim("Watching for changes. Ctrl-C to stop."))
+                    first = False
+
+            before = _watch_signature(_watched(config, sources, results))
+            changed = _wait_for_change(config, sources, results, before)
+
+            # A rule and a clock at the head of each pass, so that six builds
+            # in a terminal read as six builds rather than as one long report.
+            print()
+            print(_watch_rule())
+
+            # Editing the letterhead is the first thing anybody tries. A file
+            # that does not read is reported and the old configuration kept, so
+            # that half-typed YAML costs an error rather than the session; there
+            # is nothing honest to build from it until it reads again.
+            build = True
+            if config.path is not None and config.path in changed:
+                try:
+                    config = config_module.load(config.path)
+                except LetterheadError as error:
+                    _report(error)
+                    build = False
+    except KeyboardInterrupt:
+        # A watch stopped on purpose is not a failure. `main` still returns 130
+        # for an interrupt during a one-shot build, which is one.
+        print()
+        print("Stopped watching.")
+        return 0
+
+
+def _watch_rule(width: int = 52) -> str:
+    """The dim line between one pass and the next, with the time on it."""
+    stamp = time.strftime("%H:%M:%S")
+    dash = _mark("─", "-")
+    return _dim(f"{dash * 3} {stamp} {dash * max(1, width - len(stamp) - 5)}")
+
+
+def _watched(
+    config: Config,
+    sources: list[Path] | None,
+    results: Sequence[builder.BuildResult],
+) -> list[Path]:
+    """Every file a rebuild would read, as far as it can be known.
+
+    Three groups. The letterhead — the configuration, its locale packs, and the
+    two pictures the configuration names, resolved the way a build resolves
+    them because either may be written once per language. The documents —
+    whichever were named, or whatever `discover` finds now, which is re-asked
+    every pass so that a newly written document is picked up; that is also why
+    the source directory itself is watched, since a directory's own mtime moves
+    when an entry is added to it. And the pictures, which only a build that has
+    already happened can name.
+    """
+    paths: list[Path] = []
+    if config.path is not None:
+        paths.append(config.path)
+    if config.locales_dir.is_dir():
+        paths.extend(sorted(config.locales_dir.glob("*.yaml")))
+    paths.extend(_configured_pictures(config))
+
+    if sources:
+        paths.extend(Path(source).resolve() for source in sources)
+    else:
+        paths.append(config.source_dir)
+        documents = config.data["documents"]
+        try:
+            paths.extend(
+                discover(
+                    config.source_dir,
+                    list(documents["include"]),
+                    list(documents["exclude"]),
+                )
+            )
+        except LetterheadError:
+            # Reported by the build; the directory is still worth watching,
+            # because creating it is how the user fixes this.
+            pass
+
+    for result in results:
+        paths.extend(result.inputs)
+    return paths
+
+
+def _watch_signature(paths: Iterable[Path]) -> dict[Path, tuple[int, int]]:
+    """What each path looks like now: its modification time and its size.
+
+    Not the modification time alone. Some filesystems carry it to the second,
+    and saving twice inside one second is the commonest edit there is; the size
+    catches what the clock cannot. A path that is not there is left out
+    entirely, so that deleting a file is a change and so is creating one.
+    """
+    signature: dict[Path, tuple[int, int]] = {}
+    for path in paths:
+        try:
+            info = Path(path).stat()
+        except OSError:
+            continue
+        signature[Path(path)] = (info.st_mtime_ns, info.st_size)
+    return signature
+
+
+def _changed(
+    before: dict[Path, tuple[int, int]], after: dict[Path, tuple[int, int]]
+) -> set[Path]:
+    """The paths that differ between two signatures, either way round."""
+    return {
+        path
+        for path in set(before) | set(after)
+        if before.get(path) != after.get(path)
+    }
+
+
+def _wait_for_change(
+    config: Config,
+    sources: list[Path] | None,
+    results: Sequence[builder.BuildResult],
+    before: dict[Path, tuple[int, int]],
+) -> set[Path]:
+    """Poll until something moves, and return what did.
+
+    The watch set is rebuilt on every pass rather than once, so that a document
+    created while this is running is watched from the moment it exists.
+    """
+    while True:
+        time.sleep(WATCH_INTERVAL)
+        changed = _changed(before, _watch_signature(_watched(config, sources, results)))
+        if not changed:
+            continue
+        # Let a write-then-rename finish before reading anything.
+        time.sleep(WATCH_SETTLE)
+        settled = _changed(before, _watch_signature(_watched(config, sources, results)))
+        return settled or changed
 
 
 def command_check(args: argparse.Namespace) -> int:
@@ -229,37 +495,55 @@ def command_check(args: argparse.Namespace) -> int:
         _report(error)
         return 1
 
+    profile = getattr(args, "profile", None)
+
     print(_bold("Configuration"))
     print(f"  {_tick()}  {_relative(config.path)} reads cleanly")
     brand = config.data["brand"].get("name") or _dim("(no brand name set)")
     print(f"     brand          {brand}")
     print(f"     language       {config.default_language}")
+    if config.profiles:
+        print(f"     profiles       {', '.join(sorted(config.profiles))}")
+    if profile:
+        # The flag applies to the whole run; a profile named in a document's
+        # own front matter is reported against that document instead, where it
+        # belongs.
+        print(f"     profile        {profile}  {_dim('(from --profile)')}")
 
     # Both paths may be written as a language map, so they are resolved the way
     # a build would resolve them, in the project's own default language.
-    chain = i18n.fallback_chain(config.default_language)
-    logo = i18n.localise(config.data["brand"].get("logo"), chain)
-    if logo:
-        path = config.resolve_path(str(logo))
-        if path.is_file():
-            print(f"     logo           {_relative(path)}")
+    logo = _configured_logo(config)
+    if logo is not None:
+        if logo.is_file():
+            print(f"     logo           {_relative(logo)}")
         else:
             problems += 1
-            print(f"  {_cross()}  logo not found: {_relative(path)}")
+            print(f"  {_cross()}  logo not found: {_relative(logo)}")
     else:
         print(f"     logo           {_dim('none — the brand name is set as a wordmark')}")
 
-    background = i18n.localise(config.data["page"]["background"].get("image"), chain)
-    if background:
-        path = config.resolve_path(str(background))
-        if path.is_file():
-            print(f"     background     {_relative(path)}")
+    background = _configured_background(config)
+    if background is not None:
+        if background.is_file():
+            print(f"     background     {_relative(background)}")
         else:
             problems += 1
-            print(f"  {_cross()}  background not found: {_relative(path)}")
+            print(f"  {_cross()}  background not found: {_relative(background)}")
 
     languages = i18n.available_locales(config.locales_dir)
     print(f"     locale packs   {', '.join(languages)}")
+
+    # The editor's copy of the schema, which is nobody's input: it changes
+    # nothing about the page, so a stale one is said out loud and still leaves
+    # `check` green. Worth saying at all because the failure it causes looks
+    # like the tool's — a setting this version accepts, underlined in red by a
+    # schema a release behind. A project without the file has not asked for
+    # one, and is left alone.
+    project_schema = config.directory / SCHEMA_FILENAME
+    if project_schema.is_file() and not _schema_is_current(project_schema):
+        print(f"  {_yellow('!')}  {SCHEMA_FILENAME} was written by another version")
+        print(_dim("     Your editor is checking this letterhead against it."))
+        print(_dim("     Run: mela-letterhead schema"))
 
     # Reading cleanly is only half of it. Every colour, weight, length, footer
     # row and header field is settled in `resolve`, which `check` did not call
@@ -269,7 +553,9 @@ def command_check(args: argparse.Namespace) -> int:
     settings_resolve = True
     probe = Document(config.path or Path(config_module.CONFIG_FILENAME), {}, "")
     try:
-        resolved = config_module.resolve(config, probe, config.default_language)
+        resolved = config_module.resolve(
+            config, probe, config.default_language, profile
+        )
     except LetterheadError as error:
         settings_resolve = False
         problems += 1
@@ -345,24 +631,27 @@ def command_check(args: argparse.Namespace) -> int:
             continue
 
         language = document.language or config.default_language
-        # In the document's own language, which is the one it will be built in:
-        # a label or a colour written per language is only wrong in some of
-        # them. Skipped when the letterhead itself did not resolve, so that one
-        # bad colour is reported once rather than once per document.
-        if settings_resolve:
-            try:
-                config_module.resolve(config, document, language)
-            except LetterheadError as error:
-                problems += 1
-                _problem(f"{_relative(path)}: {error.message}", error.hint)
-                continue
+        try:
+            # In the document's own language, which is the one it will be built
+            # in: a label or a colour written per language is only wrong in some
+            # of them. Skipped when the letterhead itself did not resolve, so
+            # that one bad colour is reported once rather than once per
+            # document — but the note is not, because reading the document's own
+            # block can fail on its own account.
+            if settings_resolve:
+                config_module.resolve(config, document, language, profile)
+            note = _overrides_note(document, profile)
+        except LetterheadError as error:
+            problems += 1
+            _problem(f"{_relative(path)}: {error.message}", error.hint)
+            continue
 
         # Hoisted because the nested f-string below cannot carry a quoted
         # argument of its own.
         arrow = _mark("→", "->")
         print(
             f"  {_tick()}  {_relative(path)}  "
-            f"{_dim(f'[{language}] {arrow} {document.output_name}.pdf')}"
+            f"{_dim(f'[{language}] {arrow} {document.output_name}.pdf')}{note}"
         )
 
     print()
@@ -381,6 +670,32 @@ def command_check(args: argparse.Namespace) -> int:
 def _load_config(args: argparse.Namespace) -> Config:
     path = Path(args.config) if getattr(args, "config", None) else None
     return config_module.load(path)
+
+
+def _configured_picture(config: Config, written: object) -> Path | None:
+    """The file a picture setting names, in the project's own language.
+
+    The logo and the page background are the two pictures the configuration
+    owns, and either may be written as a language map — a brand with a mark per
+    market. So neither can be read straight out of `config.data`, where such a
+    map stringifies into a path that does not exist.
+    """
+    localised = i18n.localise(written, i18n.fallback_chain(config.default_language))
+    return config.resolve_path(str(localised)) if localised else None
+
+
+def _configured_logo(config: Config) -> Path | None:
+    return _configured_picture(config, config.data["brand"].get("logo"))
+
+
+def _configured_background(config: Config) -> Path | None:
+    return _configured_picture(config, config.data["page"]["background"].get("image"))
+
+
+def _configured_pictures(config: Config) -> list[Path]:
+    """Both of them, leaving out whichever is not set."""
+    named = (_configured_logo(config), _configured_background(config))
+    return [path for path in named if path is not None]
 
 
 def _where(directory: Path) -> str:
@@ -414,6 +729,23 @@ def _human_size(path: Path) -> str:
     return f"{size / (1024 * 1024):.1f} MB"
 
 
+def _overrides_note(document: Document, profile: str | None) -> str:
+    """What this document changes about the letterhead, if anything.
+
+    The failure this feature will actually have is an override silently not
+    applied, so `check` says which documents carry one and how much of one.
+    """
+    parts = []
+    # The flag is reported once, against the configuration; what belongs here
+    # is the profile this document asked for itself.
+    if not profile and document.profile:
+        parts.append(f"profile {document.profile}")
+    settings = config_module.count_settings(document.overrides)
+    if settings:
+        parts.append(f"+{settings} override{'' if settings == 1 else 's'}")
+    return f"  {_dim('(' + ', '.join(parts) + ')')}" if parts else ""
+
+
 def _problem(message: str, hint: str = "") -> None:
     """Report a failure inside a `check` section, hint and all.
 
@@ -444,7 +776,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  mela-letterhead init .            scaffold a letterhead here\n"
             "  mela-letterhead build             build every document\n"
             "  mela-letterhead build offer.md    build one\n"
+            "  mela-letterhead build --watch     build again on every save\n"
             "  mela-letterhead check             diagnose without building\n"
+            "  mela-letterhead schema            refresh the editor's schema\n"
         ),
     )
     parser.add_argument("--version", action="version", version=f"mela-letterhead {__version__}")
@@ -478,6 +812,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="keep the intermediate Typst and Markdown files for inspection",
     )
+    build.add_argument(
+        "--watch",
+        action="store_true",
+        help="stay open and build again whenever something changes",
+    )
+    build.add_argument(
+        "--profile",
+        help="apply a profile from 'profiles:' to every document in this run",
+    )
     build.set_defaults(handler=command_build)
 
     check = subparsers.add_parser(
@@ -487,7 +830,24 @@ def build_parser() -> argparse.ArgumentParser:
         "anything.",
     )
     check.add_argument("-c", "--config", help=f"path to {config_module.CONFIG_FILENAME}")
+    check.add_argument(
+        "--profile",
+        help="check the letterhead as this profile leaves it",
+    )
     check.set_defaults(handler=command_check)
+
+    schema = subparsers.add_parser(
+        "schema",
+        help="write the JSON Schema beside a letterhead, for the editor",
+        description="Write this version's JSON Schema into a directory, so an "
+        "editor with yaml-language-server can complete and check "
+        f"{config_module.CONFIG_FILENAME}. `init` writes it too; run this "
+        "after upgrading, or in a project made before it existed.",
+    )
+    schema.add_argument(
+        "directory", nargs="?", default=".", help="where to write it (default: here)"
+    )
+    schema.set_defaults(handler=command_schema)
 
     return parser
 

@@ -357,6 +357,17 @@ _FONT_WEIGHTS = (
 _BACKGROUND_FITS = ("cover", "contain")
 _BACKGROUND_PAGES = ("first", "rest", "all")
 
+#: Which pages carry the footer band. Not spelled `on`, which YAML reads as the
+#: boolean true.
+_FOOTER_PAGES = ("last", "all")
+
+#: What becomes of a header field whose value is empty: a line to fill in by
+#: hand, the label alone, or nothing at all.
+_WHEN_EMPTY = ("rule", "blank", "hide")
+
+#: How a footer row is set.
+_ROW_STYLES = ("normal", "highlight", "muted")
+
 #: What each name for a border's sides expands to.
 _BORDER_SIDES: dict[str, tuple[str, ...]] = {
     "all": ("left", "right", "top", "bottom"),
@@ -413,11 +424,20 @@ class Config:
 
     ``directory`` is what every relative path in the file resolves against, so
     a configuration can be used from any working directory.
+
+    ``profiles`` is held apart from ``data`` rather than inside it, and
+    :func:`load` is where the difference is argued.
     """
 
-    def __init__(self, data: dict[str, Any], path: Path | None) -> None:
+    def __init__(
+        self,
+        data: dict[str, Any],
+        path: Path | None,
+        profiles: dict[str, Any] | None = None,
+    ) -> None:
         self.data = data
         self.path = path
+        self.profiles = profiles or {}
         self.directory = path.parent.resolve() if path else Path.cwd()
 
     # -- paths ------------------------------------------------------------
@@ -492,6 +512,16 @@ def load(path: Path | None = None, start: Path | None = None) -> Config:
     if not isinstance(raw, dict):
         raise ConfigError(f"{path}: the file must contain a mapping at the top level")
 
+    # Taken out before anything else runs, and this is not tidiness. Left in,
+    # `_deep_merge` would merge a profile *into* the schema, which is the
+    # opposite of what a profile is; `_reject_unknown_keys` would refuse every
+    # profile name as an unknown setting; and `is_translation` against an empty
+    # schema node falls through to shape alone, so `profiles: { de:, it: }` —
+    # a natural way to name profiles — would be read as a translation *of*
+    # `profiles` and collapsed to one of them by `localise`. Popping it here
+    # makes all three impossible rather than guarded against.
+    profiles = _profiles(raw.pop("profiles", None), path)
+
     version = raw.get("version", DEFAULT_CONFIG["version"])
     if isinstance(version, int) and version > DEFAULT_CONFIG["version"]:
         raise ConfigError(
@@ -502,17 +532,69 @@ def load(path: Path | None = None, start: Path | None = None) -> Config:
 
     merged = _deep_merge(copy.deepcopy(DEFAULT_CONFIG), raw)
     _reject_unknown_keys(merged, DEFAULT_CONFIG, path)
-    return Config(merged, path)
+    return Config(merged, path, profiles)
 
 
-def resolve(config: Config, document: Document, language: str) -> dict[str, Any]:
+def _profiles(written: Any, path: Path) -> dict[str, Any]:
+    """Check the shape of ``profiles:`` and nothing else.
+
+    The names are the user's, so there is nothing to suggest against. What is
+    *in* a profile is checked when the profile is applied, which is the moment
+    an error can name both the profile and the setting.
+    """
+    if written is None:
+        return {}
+    if not isinstance(written, dict):
+        raise ConfigError(
+            f"{path}: 'profiles' must be a mapping of names to settings",
+            hint="Each name holds the settings that profile changes:\n"
+            "  profiles:\n"
+            "    draft:\n"
+            "      palette:\n"
+            "        accent: '#a4262c'",
+        )
+    for name, settings in written.items():
+        if not isinstance(settings, dict):
+            raise ConfigError(
+                f"{path}: profiles.{name}: a profile must be a mapping of "
+                f"settings, got {settings!r}",
+                hint="It is written like the part of letterhead.yaml it "
+                "overrides, and may set as little as one colour.",
+            )
+    return written
+
+
+def resolve(
+    config: Config,
+    document: Document,
+    language: str,
+    profile: str | None = None,
+) -> dict[str, Any]:
     """Produce the resolved configuration for one document in one language.
 
     The document supplies the values of the header fields and its own title.
+
+    The written shape has three sources, lowest first: the file itself, the
+    active profile, and the document's own ``letterhead:`` block. They are
+    merged here — not in :func:`load`, because both of the upper two are
+    per-document, and not in the builder, because ``check`` and ``build`` both
+    come through this function and anything merged elsewhere would give them
+    different answers.
     """
     chain = i18n.fallback_chain(language, config.default_language)
     strings = i18n.load_locale(chain, config.locales_dir)
-    data = i18n.localise(copy.deepcopy(config.data), chain, DEFAULT_CONFIG)
+
+    # Merged in the written shape, and localised once at the end. This ordering
+    # is the one thing here that a later change could quietly break: merge
+    # after localising and a translated override becomes impossible, because
+    # `letterhead: { brand: { tagline: { de: "…" } } }` has to reach `localise`
+    # as a language map rather than as a string somebody already chose. It
+    # would pass every test that does not use two languages.
+    data = copy.deepcopy(config.data)
+    for override, where, prefix in _overrides(config, document, profile):
+        _reject_unknown_keys(override, DEFAULT_CONFIG, where, prefix)
+        _deep_merge(data, override)
+    data = i18n.localise(data, chain, DEFAULT_CONFIG)
 
     width, height = units.page_size(data["page"]["size"], "page.size")
     margin = data["page"]["margin"]
@@ -602,6 +684,91 @@ def resolve(config: Config, document: Document, language: str) -> dict[str, Any]
         "running": running,
         "footer": footer,
     }
+
+
+# ---------------------------------------------------------------------------
+# overrides: the profile, and the document's own block
+# ---------------------------------------------------------------------------
+
+
+def _overrides(
+    config: Config, document: Document, requested: str | None
+) -> list[tuple[dict[str, Any], Path, str]]:
+    """What is merged onto the letterhead, in ascending order of precedence.
+
+    Each entry carries where it was written, so that a setting the schema does
+    not know is refused by the name it was given: ``profiles.draft.palete``
+    rather than ``palete``.
+    """
+    overrides: list[tuple[dict[str, Any], Path, str]] = []
+
+    name, settings = _active_profile(config, document, requested)
+    if name is not None:
+        where = config.path or Path(CONFIG_FILENAME)
+        overrides.append((settings, where, f"profiles.{name}."))
+
+    block = document.overrides
+    if block:
+        overrides.append((block, document.path, "letterhead."))
+    return overrides
+
+
+def _active_profile(
+    config: Config, document: Document, requested: str | None
+) -> tuple[str | None, dict[str, Any]]:
+    """Which profile applies, and what is in it.
+
+    The flag wins for the whole run; a document's own ``profile:`` is its
+    default. ``build --profile draft`` is a thing typed one second ago about
+    this run, and its main use — watermarking everything on the way out — is
+    exactly the one a per-document veto would break. Front matter is where a
+    document that is *always* a draft says so.
+    """
+    name = requested or document.profile
+    if name is None:
+        return None, {}
+
+    if name not in config.profiles:
+        known = ", ".join(sorted(config.profiles))
+        suggestion = _closest(name, list(config.profiles))
+        # Silently ignoring a mistyped name is how a draft reaches a client.
+        raise ConfigError(
+            f"unknown profile {name!r}",
+            hint=(f"Did you mean '{suggestion}'? " if suggestion else "")
+            + (
+                f"Known profiles: {known}."
+                if known
+                else f"No profiles are defined in {CONFIG_FILENAME}."
+            ),
+        )
+    settings = config.profiles[name]
+    return name, settings
+
+
+def count_settings(override: dict[str, Any], schema: Any = None) -> int:
+    """How many settings an override actually changes.
+
+    A section counts as the settings inside it and a translation as the one
+    setting it translates, so ``{ palette: { accent:, ink: } }`` is two and
+    ``{ brand: { tagline: { en:, de: } } }`` is one. Public because ``check``
+    is the place this has to be visible: an override silently not applied is
+    the failure this feature will have.
+    """
+    if schema is None:
+        schema = DEFAULT_CONFIG
+    total = 0
+    for key, value in override.items():
+        node = schema.get(key) if isinstance(schema, dict) else None
+        if (
+            isinstance(value, dict)
+            and isinstance(node, dict)
+            and node
+            and not i18n.is_translation(value, node)
+        ):
+            total += count_settings(value, node)
+        else:
+            total += 1
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -809,9 +976,9 @@ def _resolve_header(
 ) -> dict[str, Any]:
     fields = header["fields"]
     when_empty = str(fields.get("when_empty", "rule")).lower()
-    if when_empty not in ("rule", "blank", "hide"):
+    if when_empty not in _WHEN_EMPTY:
         raise ConfigError(
-            f"header.fields.when_empty: expected 'rule', 'blank' or 'hide', "
+            f"header.fields.when_empty: expected {_one_of(_WHEN_EMPTY)}, "
             f"got {fields['when_empty']!r}"
         )
 
@@ -953,9 +1120,9 @@ def _resolve_footer(
     footer: dict[str, Any], palette: dict[str, str], links: bool = True
 ) -> dict[str, Any]:
     pages = str(footer.get("pages", "last")).lower()
-    if pages not in ("last", "all"):
+    if pages not in _FOOTER_PAGES:
         raise ConfigError(
-            f"footer.pages: expected 'last' or 'all', got {footer['pages']!r}",
+            f"footer.pages: expected {_one_of(_FOOTER_PAGES)}, got {footer['pages']!r}",
             hint="'last' prints the band on the final page only; 'all' on every page.",
         )
 
@@ -1037,10 +1204,9 @@ def _resolve_footer_row(row: Any, where: str, links: bool = True) -> dict[str, A
 
     elif isinstance(row, dict):
         style = str(row.get("style", "normal")).lower()
-        if style not in ("normal", "highlight", "muted"):
+        if style not in _ROW_STYLES:
             raise ConfigError(
-                f"{where}.style: expected 'normal', 'highlight' or 'muted', "
-                f"got {row['style']!r}"
+                f"{where}.style: expected {_one_of(_ROW_STYLES)}, got {row['style']!r}"
             )
         label, value, link = row.get("label"), row.get("value"), row.get("link")
 
@@ -1066,6 +1232,19 @@ def _resolve_footer_row(row: Any, where: str, links: bool = True) -> dict[str, A
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
+
+def _one_of(names: tuple[str, ...]) -> str:
+    """``'rule', 'blank' or 'hide'`` — a short fixed vocabulary, in a sentence.
+
+    Written from the tuple rather than beside it, so that a vocabulary gains an
+    entry in one place: the tuple is also what the JSON schema is generated
+    from, and a list spelled twice is a list that ends up spelled differently.
+    """
+    quoted = [repr(name) for name in names]
+    if len(quoted) == 1:
+        return quoted[0]
+    return f"{', '.join(quoted[:-1])} or {quoted[-1]}"
 
 
 def _as_text(value: Any) -> str | None:

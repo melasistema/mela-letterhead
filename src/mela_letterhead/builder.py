@@ -68,11 +68,18 @@ class BuildResult(NamedTuple):
     No page count: Typst reports one only to a second invocation — `typst
     query` against a `#metadata` label the module would have to emit — and
     nothing reads it yet. That is the route when something does.
+
+    ``inputs`` is every file that fed this build, on the user's disk rather
+    than in the build directory: the document, the logo, the page background,
+    then each picture the body refers to. Which pictures those are is not
+    knowable before Pandoc has run, so a watch can only learn them from a build
+    that has already happened — which is what this carries.
     """
 
     document: Document
     pdf: Path
     language: str
+    inputs: tuple[Path, ...] = ()
 
 
 def build_all(
@@ -80,6 +87,7 @@ def build_all(
     sources: Sequence[Path] | None = None,
     keep_build: bool = False,
     on_start: Callable[[Path], None] | None = None,
+    profile: str | None = None,
 ) -> list[BuildResult]:
     """Build the given documents, or every document the configuration selects."""
     if sources:
@@ -106,11 +114,18 @@ def build_all(
     for path in paths:
         if on_start is not None:
             on_start(path)
-        results.append(build_document(config, path, keep_build=keep_build))
+        results.append(
+            build_document(config, path, keep_build=keep_build, profile=profile)
+        )
     return results
 
 
-def build_document(config: Config, source: Path, keep_build: bool = False) -> BuildResult:
+def build_document(
+    config: Config,
+    source: Path,
+    keep_build: bool = False,
+    profile: str | None = None,
+) -> BuildResult:
     """Build one Markdown file into a PDF."""
     toolchain.require("pandoc")
     toolchain.require("typst")
@@ -118,14 +133,19 @@ def build_document(config: Config, source: Path, keep_build: bool = False) -> Bu
     source = Path(source).resolve()
     document = Document.load(source, config.data["documents"]["date_format"])
     language = document.language or config.default_language
-    resolved = config_module.resolve(config, document, language)
+    resolved = config_module.resolve(config, document, language, profile)
 
     if document.author:
         resolved["document"]["author"] = document.author
 
     require_alt_text_support(resolved["pdf"]["standard"])
 
-    workdir = _stage(config, document, resolved)
+    # Filled as the staging goes, in the order the files are read, so that
+    # whatever wants to know what this build depended on gets the list without
+    # a second pass over anything.
+    inputs: list[Path] = [source]
+
+    workdir = _stage(config, document, resolved, inputs)
 
     body = markdown_prep.prepare(document.body, config.data["markdown"])
     prepared = workdir / "body.prep.md"
@@ -133,7 +153,7 @@ def build_document(config: Config, source: Path, keep_build: bool = False) -> Bu
 
     generated = workdir / "document.typ"
     _run_pandoc(config, prepared, generated)
-    _stage_images(source.parent, workdir, generated)
+    _stage_images(source.parent, workdir, generated, inputs)
 
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -143,7 +163,9 @@ def build_document(config: Config, source: Path, keep_build: bool = False) -> Bu
     if not keep_build:
         shutil.rmtree(workdir, ignore_errors=True)
 
-    return BuildResult(document=document, pdf=pdf, language=language)
+    return BuildResult(
+        document=document, pdf=pdf, language=language, inputs=tuple(inputs)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -151,7 +173,12 @@ def build_document(config: Config, source: Path, keep_build: bool = False) -> Bu
 # ---------------------------------------------------------------------------
 
 
-def _stage(config: Config, document: Document, resolved: dict[str, Any]) -> Path:
+def _stage(
+    config: Config,
+    document: Document,
+    resolved: dict[str, Any],
+    inputs: list[Path] | None = None,
+) -> Path:
     """Create the document's build directory and fill it."""
     workdir = config.build_dir / document.slug
     if workdir.exists():
@@ -162,9 +189,13 @@ def _stage(config: Config, document: Document, resolved: dict[str, Any]) -> Path
 
     # Both of these arrive as the path the user wrote and leave as the name
     # the file landed under here, which is all Typst ever sees of them.
-    resolved["brand"]["logo"] = _stage_logo(config, workdir, resolved["brand"]["logo"])
+    resolved["brand"]["logo"] = _stage_logo(
+        config, workdir, resolved["brand"]["logo"], inputs
+    )
     background = resolved["page"]["background"]
-    background["image"] = _stage_background(config, workdir, background["image"])
+    background["image"] = _stage_background(
+        config, workdir, background["image"], inputs
+    )
 
     (workdir / "document.json").write_text(
         json.dumps(resolved, ensure_ascii=False, indent=2) + "\n",
@@ -174,7 +205,10 @@ def _stage(config: Config, document: Document, resolved: dict[str, Any]) -> Path
 
 
 def _stage_logo(
-    config: Config, workdir: Path, configured: str | None
+    config: Config,
+    workdir: Path,
+    configured: str | None,
+    inputs: list[Path] | None = None,
 ) -> str | None:
     """The brand's mark, as the configuration names it."""
     return _stage_asset(
@@ -184,11 +218,15 @@ def _stage_logo(
         "brand.logo",
         "logo",
         missing="Remove the setting to set the brand name as a wordmark instead.",
+        inputs=inputs,
     )
 
 
 def _stage_background(
-    config: Config, workdir: Path, configured: str | None
+    config: Config,
+    workdir: Path,
+    configured: str | None,
+    inputs: list[Path] | None = None,
 ) -> str | None:
     """The picture behind the page, as the configuration names it.
 
@@ -204,6 +242,7 @@ def _stage_background(
         "background",
         unplaceable="A sheet drawn in a page-layout program has to be exported "
         "raster — PNG or JPEG, 300 dpi for print.",
+        inputs=inputs,
     )
 
 
@@ -215,6 +254,7 @@ def _stage_asset(
     stem: str,
     missing: str = "",
     unplaceable: str = "",
+    inputs: list[Path] | None = None,
 ) -> str | None:
     """Copy a picture the configuration names, and return its name here.
 
@@ -225,6 +265,10 @@ def _stage_asset(
 
     Both are refused by name when Typst could not place them, before a compile
     that would fail halfway through with something less helpful.
+
+    ``inputs`` is appended to rather than returned alongside the name, because
+    this has two callers and a richer return would ripple through both for the
+    sake of one list.
     """
     if not configured:
         return None
@@ -247,16 +291,27 @@ def _stage_asset(
 
     name = stem + suffix
     shutil.copy2(source, workdir / name)
+    if inputs is not None:
+        inputs.append(source)
     return name
 
 
-def _stage_images(source_dir: Path, workdir: Path, generated: Path) -> list[str]:
+def _stage_images(
+    source_dir: Path,
+    workdir: Path,
+    generated: Path,
+    inputs: list[Path] | None = None,
+) -> list[str]:
     """Copy the pictures the generated Typst asks for, and repoint it at them.
 
     Paths are read relative to the document that names them, which is where a
     writer looking at the Markdown would expect them to be. Every file lands in
     one directory under its own name, so the build directory shows at a glance
     what the document is carrying; a name used twice gains a number.
+
+    What is returned is the names the files landed under here. ``inputs``, by
+    contrast, collects the paths they came from, which is the only form of any
+    use to something watching the user's disk.
     """
     text = generated.read_text(encoding="utf-8")
     staged: dict[str, str] = {}
@@ -265,7 +320,9 @@ def _stage_images(source_dir: Path, workdir: Path, generated: Path) -> list[str]
     def place(match: re.Match[str]) -> str:
         written = _unescape(match.group(2))
         if written not in staged:
-            staged[written] = _stage_one_image(source_dir, workdir, written, taken)
+            staged[written] = _stage_one_image(
+                source_dir, workdir, written, taken, inputs
+            )
         return match.group(1) + staged[written] + match.group(3)
 
     rewritten = _IMAGE_CALL_RE.sub(place, text)
@@ -342,7 +399,11 @@ def _end_of_string(text: str, index: int) -> int:
 
 
 def _stage_one_image(
-    source_dir: Path, workdir: Path, written: str, taken: dict[Path, str]
+    source_dir: Path,
+    workdir: Path,
+    written: str,
+    taken: dict[Path, str],
+    inputs: list[Path] | None = None,
 ) -> str:
     """Copy one picture into the build directory and return its name there."""
     if _REMOTE_RE.match(written):
@@ -382,6 +443,8 @@ def _stage_one_image(
 
     placed = f"{IMAGE_DIR}/{name}"
     taken[source] = placed
+    if inputs is not None:
+        inputs.append(source)
     return placed
 
 

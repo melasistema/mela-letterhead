@@ -312,11 +312,19 @@ fi
 # CI fails a release branch for either of these, and finding out from a red
 # tick after the tag is public is the whole thing this script exists to avoid.
 if command -v ruff >/dev/null 2>&1; then
-    ruff check --quiet src tests || die "ruff has something to say"
+    ruff check --quiet src tests tools || die "ruff has something to say"
     good "ruff is happy"
 else
     note "ruff is not on PATH; CI will run it instead"
 fi
+
+# The schema is generated from DEFAULT_CONFIG and committed inside the package,
+# which is how `pipx install` carries it and how `init` hands a project its own
+# copy. A release that ships a setting the schema has never heard of underlines
+# that setting, in red, in the editor of everybody who takes the upgrade.
+python3 tools/generate_schema.py --check >/dev/null \
+    || die "the schema is stale — run: python3 tools/generate_schema.py"
+good "the schema is up to date"
 
 if command -v mypy >/dev/null 2>&1; then
     mypy --no-error-summary || die "mypy has something to say"

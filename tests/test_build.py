@@ -82,6 +82,31 @@ class TestBuild:
         placed = sorted(path.name for path in (workdir / builder.IMAGE_DIR).iterdir())
         assert placed == sorted(cli.SCAFFOLD_PLATES)
 
+    def test_the_result_names_every_file_that_fed_the_build(self, project):
+        # What `--watch` is watching. Which pictures a document uses is only
+        # knowable after Pandoc has run, so a build is the only thing that can
+        # say; the logo and the document itself come from the staging before it.
+        config = config_module.load(project / "letterhead.yaml")
+        (result,) = builder.build_all(config)
+        assert sorted(path.name for path in result.inputs) == sorted(
+            ["example-letter.md", "logo.svg", *cli.SCAFFOLD_PLATES]
+        )
+        # The paths on the user's disk, not the copies in the build directory,
+        # which is the only form of any use to something watching for a change.
+        for path in result.inputs:
+            assert path.is_file()
+            assert config.build_dir not in path.parents
+
+    def test_a_picture_used_twice_is_named_once(self, project):
+        (project / "twice.md").write_text(
+            "# Twice\n\n![](assets/plate-condition.svg)\n\n"
+            "![](./assets/plate-condition.svg)\n",
+            encoding="utf-8",
+        )
+        config = config_module.load(project / "letterhead.yaml")
+        result = builder.build_document(config, project / "twice.md")
+        assert len(result.inputs) == len(set(result.inputs))
+
     def test_a_document_chooses_its_own_language(self, project):
         (project / "locales").mkdir()
         (project / "locales" / "de.yaml").write_text(
@@ -230,6 +255,36 @@ class TestBuild:
         config = config_module.load(project / "letterhead.yaml")
         results = builder.build_all(config)
         assert results[0].pdf.parent.name == "pdf"
+
+
+@needs_toolchain
+class TestReproducibleBuilds:
+    """The same source, twice, byte for byte.
+
+    It belongs beside PDF/A: an archival document that differs between two
+    builds of the same source is an awkward thing to defend. Nothing in
+    `builder` implements this — `toolchain.run` passes the environment straight
+    through and Typst reads `SOURCE_DATE_EPOCH` from it — so what is under test
+    is that nothing in the pipeline has started stamping the page itself.
+    """
+
+    def build(self, project, monkeypatch, epoch="1700000000"):
+        monkeypatch.setenv("SOURCE_DATE_EPOCH", epoch)
+        config = config_module.load(project / "letterhead.yaml")
+        return builder.build_all(config)[0].pdf.read_bytes()
+
+    def test_a_fixed_timestamp_gives_a_fixed_file(self, project, monkeypatch):
+        assert self.build(project, monkeypatch) == self.build(project, monkeypatch)
+
+    def test_the_timestamp_really_is_in_the_file(self, project, monkeypatch):
+        # Otherwise the test above would pass just as well on a build that
+        # ignored the variable. Asserted by moving the clock rather than by
+        # waiting for it: two builds a second apart are identical anyway,
+        # because the stamp has one-second resolution — which is exactly what
+        # makes the unfixed case awkward to reason about rather than obvious.
+        assert self.build(project, monkeypatch, "1700000000") != self.build(
+            project, monkeypatch, "1800000000"
+        )
 
 
 @needs_toolchain
@@ -545,3 +600,59 @@ class TestStaging:
         config = config_module.load(project / "letterhead.yaml")
         with pytest.raises(ConfigError, match="not a directory"):
             builder.font_paths(config)
+
+
+@needs_toolchain
+class TestProfilesEndToEnd:
+    """A profile, all the way to the file on the disk.
+
+    Asserted on the PDF's own identification rather than on the bytes
+    differing: two builds of the same source differ anyway, because the
+    creation timestamp is in there.
+    """
+
+    def with_profile(self, project):
+        path = project / "letterhead.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8")
+            + "\nprofiles:\n  archival:\n    pdf:\n      standard: a-3b\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def test_nothing_asked_for_builds_what_it_always_did(self, project):
+        path = self.with_profile(project)
+        assert cli.main(["build", "-c", str(path)]) == 0
+        assert b"pdfaid:part" not in (project / "example-letter.pdf").read_bytes()
+
+    def test_the_flag_reaches_the_compiler(self, project):
+        path = self.with_profile(project)
+        assert cli.main(["build", "-c", str(path), "--profile", "archival"]) == 0
+        assert b"pdfaid:part>3<" in (project / "example-letter.pdf").read_bytes()
+
+    def test_a_document_may_ask_for_one_itself(self, project):
+        path = self.with_profile(project)
+        letter = project / "example-letter.md"
+        letter.write_text(
+            letter.read_text(encoding="utf-8").replace(
+                "---\n", "---\nprofile: archival\n", 1
+            ),
+            encoding="utf-8",
+        )
+        assert cli.main(["build", "-c", str(path)]) == 0
+        assert b"pdfaid:part>3<" in (project / "example-letter.pdf").read_bytes()
+
+    def test_an_unknown_profile_stops_the_run(self, project):
+        path = self.with_profile(project)
+        assert cli.main(["build", "-c", str(path), "--profile", "archivl"]) == 1
+
+    def test_a_front_matter_block_prints(self, project):
+        letter = project / "example-letter.md"
+        letter.write_text(
+            letter.read_text(encoding="utf-8").replace(
+                "---\n", "---\nletterhead:\n  header:\n    show: false\n", 1
+            ),
+            encoding="utf-8",
+        )
+        config = config_module.load(project / "letterhead.yaml")
+        assert builder.build_all(config)[0].pdf.read_bytes().startswith(b"%PDF")

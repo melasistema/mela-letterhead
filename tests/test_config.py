@@ -620,3 +620,180 @@ class TestValidation:
         resolved = config_module.resolve(config, make_document(tmp_path), "en")
         assert resolved["footer"]["show"] is False
         assert resolved["page"]["footer_reserve"] == 0
+
+
+PROFILED = MINIMAL + """\
+profiles:
+  draft:
+    palette:
+      accent: "#a4262c"
+  final:
+    palette:
+      accent: "#000000"
+"""
+
+
+class TestProfiles:
+    """Two of the three sources the written shape now has.
+
+    A profile is a named set of overrides in `letterhead.yaml`; a document's
+    own `letterhead:` block is the third, and beats it. Both are merged in
+    `resolve`, which is the one function `check` and `build` share.
+    """
+
+    def test_a_profile_is_not_a_setting(self, tmp_path):
+        # Popped before the merge, so it never reaches `data` and never has to
+        # be exempted from anything downstream.
+        config = make_config(tmp_path, PROFILED)
+        assert "profiles" not in config.data
+        assert sorted(config.profiles) == ["draft", "final"]
+
+    def test_it_changes_what_it_names_and_leaves_the_rest(self, tmp_path):
+        config = make_config(tmp_path, PROFILED)
+        resolved = config_module.resolve(
+            config, make_document(tmp_path), "en", "draft"
+        )
+        assert resolved["palette"]["accent"] == "#a4262c"
+        # The rest of the palette is still the palette.
+        assert resolved["palette"]["ink"] == config_module.DEFAULT_CONFIG["palette"]["ink"]
+
+    def test_nothing_asked_for_changes_nothing(self, tmp_path):
+        config = make_config(tmp_path, PROFILED)
+        plain = config_module.resolve(config, make_document(tmp_path), "en")
+        assert plain["palette"]["accent"] == config_module.DEFAULT_CONFIG["palette"]["accent"]
+
+    def test_a_profile_named_like_a_language_survives(self, tmp_path):
+        # The trap that makes popping `profiles` non-negotiable rather than
+        # merely tidy: with an empty schema node `is_translation` falls through
+        # to shape alone, so `profiles: { de:, it: }` would be read as a
+        # translation *of* `profiles` and collapsed to one of them.
+        config = make_config(
+            tmp_path,
+            MINIMAL + 'profiles:\n  de:\n    palette:\n      accent: "#111111"\n'
+            '  it:\n    palette:\n      accent: "#222222"\n',
+        )
+        assert sorted(config.profiles) == ["de", "it"]
+        resolved = config_module.resolve(config, make_document(tmp_path), "it", "de")
+        assert resolved["palette"]["accent"] == "#111111"
+
+    def test_an_unknown_setting_inside_one_names_the_profile(self, tmp_path):
+        config = make_config(
+            tmp_path, MINIMAL + "profiles:\n  draft:\n    palete:\n      accent: '#000'\n"
+        )
+        with pytest.raises(ConfigError, match=r"profiles\.draft\.palete"):
+            config_module.resolve(config, make_document(tmp_path), "en", "draft")
+
+    def test_an_unknown_profile_is_refused_with_a_suggestion(self, tmp_path):
+        # Silently ignoring `--profile finl` is how a draft reaches a client.
+        config = make_config(tmp_path, PROFILED)
+        with pytest.raises(ConfigError, match="unknown profile") as caught:
+            config_module.resolve(config, make_document(tmp_path), "en", "finl")
+        assert "final" in caught.value.hint
+
+    def test_an_unknown_profile_where_none_are_defined_says_so(self, tmp_path):
+        config = make_config(tmp_path, MINIMAL)
+        with pytest.raises(ConfigError) as caught:
+            config_module.resolve(config, make_document(tmp_path), "en", "draft")
+        assert "No profiles are defined" in caught.value.hint
+
+    def test_a_profile_that_is_not_a_mapping_is_refused_at_load(self, tmp_path):
+        with pytest.raises(ConfigError, match="profiles.draft"):
+            make_config(tmp_path, MINIMAL + "profiles:\n  draft: watermark\n")
+
+    def test_profiles_that_are_not_a_mapping_at_all_are_refused(self, tmp_path):
+        with pytest.raises(ConfigError, match="profiles"):
+            make_config(tmp_path, MINIMAL + "profiles: [draft, final]\n")
+
+
+class TestDocumentOverrides:
+    def test_the_front_matter_block_changes_this_document_alone(self, tmp_path):
+        config = make_config(tmp_path, MINIMAL)
+        document = make_document(
+            tmp_path,
+            "lang: en\nletterhead:\n  palette:\n    accent: '#a4262c'\n",
+        )
+        resolved = config_module.resolve(config, document, "en")
+        assert resolved["palette"]["accent"] == "#a4262c"
+        # And nothing about the configuration it was merged onto.
+        assert config.data["palette"]["accent"] == "#4a3f8a"
+
+    def test_it_beats_the_profile(self, tmp_path):
+        config = make_config(tmp_path, PROFILED)
+        document = make_document(
+            tmp_path,
+            "lang: en\nletterhead:\n  palette:\n    accent: '#00ff00'\n",
+        )
+        resolved = config_module.resolve(config, document, "en", "draft")
+        assert resolved["palette"]["accent"] == "#00ff00"
+
+    def test_a_document_may_name_its_own_profile(self, tmp_path):
+        config = make_config(tmp_path, PROFILED)
+        document = make_document(tmp_path, "lang: en\nprofile: draft\n")
+        resolved = config_module.resolve(config, document, "en")
+        assert resolved["palette"]["accent"] == "#a4262c"
+
+    def test_the_flag_beats_the_front_matter(self, tmp_path):
+        # `build --profile final` is a thing you typed one second ago about
+        # this run; a per-document veto would break the one use it has.
+        config = make_config(tmp_path, PROFILED)
+        document = make_document(tmp_path, "lang: en\nprofile: draft\n")
+        resolved = config_module.resolve(config, document, "en", "final")
+        assert resolved["palette"]["accent"] == "#000000"
+
+    def test_an_unknown_setting_in_the_block_names_the_block(self, tmp_path):
+        config = make_config(tmp_path, MINIMAL)
+        document = make_document(tmp_path, "lang: en\nletterhead:\n  palete: {}\n")
+        with pytest.raises(ConfigError, match=r"letterhead\.palete"):
+            config_module.resolve(config, document, "en")
+
+    def test_a_block_that_is_not_a_mapping_is_refused_by_name(self, tmp_path):
+        from mela_letterhead.errors import DocumentError
+
+        config = make_config(tmp_path, MINIMAL)
+        document = make_document(tmp_path, "lang: en\nletterhead: nothing\n")
+        with pytest.raises(DocumentError, match="letterhead"):
+            config_module.resolve(config, document, "en")
+
+    def test_neither_key_is_the_user_s(self, tmp_path):
+        # Front matter is the user's except for what `RESERVED_KEYS` names,
+        # and a header field printing `letterhead` would stringify a whole
+        # mapping of settings onto the page.
+        from mela_letterhead import document as document_module
+
+        assert "letterhead" in document_module.RESERVED_KEYS
+        assert "profile" in document_module.RESERVED_KEYS
+
+    def test_a_translated_override_still_resolves_per_language(self, tmp_path):
+        # The merge-order test. Localise before merging and this is impossible:
+        # the override has to reach `localise` as a language map rather than as
+        # a string somebody already chose.
+        config = make_config(tmp_path, MINIMAL)
+        front_matter = (
+            "lang: it\nletterhead:\n  brand:\n"
+            "    tagline: { en: 'Surveys', it: 'Perizie' }\n"
+        )
+        document = make_document(tmp_path, front_matter)
+
+        def tagline(language):
+            return config_module.resolve(config, document, language)["brand"]["tagline"]
+
+        assert tagline("it")["text"] == "Perizie"
+        assert tagline("en")["text"] == "Surveys"
+
+
+class TestCountingOverrides:
+    """What `check` prints, which is the only thing that makes an override
+    visible before the PDF is opened."""
+
+    def test_a_section_counts_the_settings_in_it(self):
+        assert config_module.count_settings(
+            {"palette": {"accent": "#000", "ink": "#111"}, "footer": {"show": False}}
+        ) == 3
+
+    def test_a_translation_counts_as_the_one_setting_it_translates(self):
+        assert config_module.count_settings(
+            {"brand": {"tagline": {"en": "Surveys", "it": "Perizie"}}}
+        ) == 1
+
+    def test_nothing_is_nothing(self):
+        assert config_module.count_settings({}) == 0

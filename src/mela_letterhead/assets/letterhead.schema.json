@@ -1,0 +1,1054 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Mela Letterhead",
+  "description": "letterhead.yaml — the paper every document in this project is printed on.\n\nThis describes the file as it is written. Any text in it may be written once per language. It is looser than the tool about lengths, which it accepts in every family the tool has, and stricter in one place: a whole section written once per language is flagged here though the tool allows it. Run 'mela-letterhead check' for the answer that counts.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Schema version. Bumped only for a change that would misread an old file."
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$",
+      "description": "Language used by documents that declare none of their own."
+    },
+    "brand": {
+      "$ref": "#/$defs/brand"
+    },
+    "page": {
+      "$ref": "#/$defs/page"
+    },
+    "palette": {
+      "$ref": "#/$defs/palette"
+    },
+    "fonts": {
+      "$ref": "#/$defs/fonts"
+    },
+    "typography": {
+      "$ref": "#/$defs/typography"
+    },
+    "images": {
+      "$ref": "#/$defs/images"
+    },
+    "header": {
+      "$ref": "#/$defs/header"
+    },
+    "running": {
+      "$ref": "#/$defs/running"
+    },
+    "footer": {
+      "$ref": "#/$defs/footer"
+    },
+    "markdown": {
+      "$ref": "#/$defs/markdown"
+    },
+    "pdf": {
+      "$ref": "#/$defs/pdf"
+    },
+    "documents": {
+      "$ref": "#/$defs/documents"
+    },
+    "build_dir": {
+      "type": "string",
+      "description": "Intermediates live here. Safe to delete, and worth reading when a document does not come out the way you expected."
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Named sets of changes to the letterhead, applied with --profile or from a document's front matter.",
+      "additionalProperties": {
+        "$ref": "#/$defs/letterhead"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "text": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "patternProperties": {
+            "^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        }
+      ]
+    },
+    "colour": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+        },
+        {
+          "type": "object",
+          "patternProperties": {
+            "^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$": {
+              "type": "string",
+              "pattern": "^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        }
+      ]
+    },
+    "length": {
+      "oneOf": [
+        {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "pattern": "^\\s*[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)\\s*(?:cm|in|mm|pc|pt|em|%)?\\s*$"
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "patternProperties": {
+            "^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$": {
+              "oneOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\s*[+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+)\\s*(?:cm|in|mm|pc|pt|em|%)?\\s*$"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        }
+      ]
+    },
+    "fontStack": {
+      "oneOf": [
+        {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "patternProperties": {
+            "^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1
+                }
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        }
+      ]
+    },
+    "weight": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 900
+        },
+        {
+          "enum": [
+            "thin",
+            "extralight",
+            "light",
+            "regular",
+            "medium",
+            "semibold",
+            "bold",
+            "extrabold",
+            "black"
+          ]
+        }
+      ]
+    },
+    "headerField": {
+      "type": "object",
+      "description": "One field printed in the header band. 'key' takes the value from the document's front matter; 'value' sets it here.",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "$ref": "#/$defs/text"
+        },
+        "value": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "footerColumn": {
+      "type": "object",
+      "description": "One column of the footer band.",
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/text"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/footerRow"
+          }
+        }
+      }
+    },
+    "footerRow": {
+      "description": "A line, a [label, value] pair, or the full form.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        {
+          "type": "object",
+          "properties": {
+            "label": {
+              "$ref": "#/$defs/text"
+            },
+            "value": {
+              "$ref": "#/$defs/text"
+            },
+            "link": {
+              "$ref": "#/$defs/text"
+            },
+            "style": {
+              "enum": [
+                "normal",
+                "highlight",
+                "muted"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "brand": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/text"
+        },
+        "logo": {
+          "$ref": "#/$defs/text",
+          "description": "Path to a logo, relative to the configuration file. PNG, JPEG and SVG all work. Leave it out to set the brand name as a typographic wordmark instead."
+        },
+        "author": {
+          "$ref": "#/$defs/text",
+          "description": "Written into the PDF's metadata. Defaults to the brand name."
+        },
+        "wordmark": {
+          "description": "How the brand name is set when there is no logo file. Every measurement here is a share of the width the mark occupies (`header.logo.width` on page one), so that the smaller mark in the running header is the same design rather than another one. A length may be written instead and is read as a share of that width.",
+          "type": "object",
+          "properties": {
+            "font": {
+              "$ref": "#/$defs/fontStack",
+              "description": "defaults to the display stack"
+            },
+            "size": {
+              "$ref": "#/$defs/length"
+            },
+            "weight": {
+              "$ref": "#/$defs/weight"
+            },
+            "color": {
+              "$ref": "#/$defs/colour",
+              "description": "Left out, the wordmark follows the ink of whatever it is printed on: the header band on page one, the paper in the running header. A band dark enough to need a pale wordmark is therefore not a band that loses the mark on page two."
+            },
+            "tracking": {
+              "$ref": "#/$defs/length"
+            },
+            "align": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "tagline": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "$ref": "#/$defs/text"
+                },
+                "font": {
+                  "$ref": "#/$defs/fontStack",
+                  "description": "defaults to the sans stack"
+                },
+                "size": {
+                  "$ref": "#/$defs/length"
+                },
+                "weight": {
+                  "$ref": "#/$defs/weight"
+                },
+                "color": {
+                  "$ref": "#/$defs/colour",
+                  "description": "defaults to the header band's muted colour"
+                },
+                "tracking": {
+                  "$ref": "#/$defs/length"
+                },
+                "gap": {
+                  "$ref": "#/$defs/length"
+                }
+              },
+              "additionalProperties": false
+            }
+          ],
+          "description": "A line under the mark on page one — under a logo just as under a wordmark. May be written as a plain string, which is the text, or as the mapping below."
+        }
+      },
+      "additionalProperties": false
+    },
+    "page": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "anyOf": [
+            {
+              "enum": [
+                "a3",
+                "a4",
+                "a5",
+                "b5",
+                "executive",
+                "legal",
+                "letter",
+                "a3-landscape",
+                "a4-landscape",
+                "a5-landscape",
+                "b5-landscape",
+                "executive-landscape",
+                "legal-landscape",
+                "letter-landscape"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^(?:[aA]3|[aA]4|[aA]5|[bB]5|[eE][xX][eE][cC][uU][tT][iI][vV][eE]|[lL][eE][gG][aA][lL]|[lL][eE][tT][tT][eE][rR])(?:[-_ ][lL][aA][nN][dD][sS][cC][aA][pP][eE])?$"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "width": {
+                  "$ref": "#/$defs/length"
+                },
+                "height": {
+                  "$ref": "#/$defs/length"
+                }
+              },
+              "required": [
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "margin": {
+          "type": "object",
+          "properties": {
+            "x": {
+              "$ref": "#/$defs/length"
+            },
+            "top": {
+              "$ref": "#/$defs/length",
+              "description": "Top margin of the inner pages; the first page is pushed down by the header band automatically."
+            },
+            "bottom": {
+              "$ref": "#/$defs/length",
+              "description": "Ordinary bottom margin. The last page gains whatever extra room the footer band needs, also automatically."
+            }
+          },
+          "additionalProperties": false
+        },
+        "border": {
+          "description": "A rule around the paper, on every page. Off at nought width, which is the default: a border is a strong device and not every brand wants one. It is drawn under the bands, so a full-bleed band interrupts it rather than being crossed by it.",
+          "type": "object",
+          "properties": {
+            "width": {
+              "$ref": "#/$defs/length"
+            },
+            "color": {
+              "$ref": "#/$defs/colour",
+              "description": "defaults to palette.accent"
+            },
+            "inset": {
+              "$ref": "#/$defs/length",
+              "description": "Distance from the edge of the paper."
+            },
+            "sides": {
+              "oneOf": [
+                {
+                  "enum": [
+                    "all",
+                    "none",
+                    "left",
+                    "right",
+                    "top",
+                    "bottom",
+                    "x",
+                    "y"
+                  ]
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "all",
+                      "none",
+                      "left",
+                      "right",
+                      "top",
+                      "bottom",
+                      "x",
+                      "y"
+                    ]
+                  }
+                }
+              ],
+              "description": "\"all\", one of left/right/top/bottom, \"x\", \"y\", \"none\", or a list of sides."
+            }
+          },
+          "additionalProperties": false
+        },
+        "background": {
+          "description": "A picture behind everything else. Read relative to this file, like the logo and unlike a picture in the body: it belongs to the letterhead, and no document mentions it.\n\nThis is what turns the tool around. A designer who already has a sheet — drawn in Illustrator, printed by a printer — exports it, points this at it, sets `header.show` and `footer.show` to false and adjusts the margins, and what comes out is their own paper with Markdown set on it.",
+          "type": "object",
+          "properties": {
+            "image": {
+              "$ref": "#/$defs/text",
+              "description": "PNG, JPEG or SVG; 300 dpi for print. Typst places no PDF, so a sheet drawn in a page-layout program has to be exported raster."
+            },
+            "fit": {
+              "enum": [
+                "cover",
+                "contain"
+              ],
+              "description": "\"cover\" fills the paper and crops what will not fit; \"contain\" fits the whole picture inside it and leaves the paper showing where the proportions disagree."
+            },
+            "pages": {
+              "enum": [
+                "first",
+                "rest",
+                "all"
+              ],
+              "description": "\"first\", \"rest\" (every page but the first) or \"all\". A designed sheet is usually \"first\", with a plainer second sheet or none."
+            },
+            "veil": {
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\s*\\d+(?:\\.\\d+)?\\s*%\\s*$"
+                }
+              ],
+              "description": "White laid over the picture, from 0 (none) to 1 (opaque), so that text stays readable over it. Typst has no image opacity, so this really is a translucent white rectangle: it pales a picture on white paper, and does nothing good on any other."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "palette": {
+      "description": "The colours of the whole document. Each band may override the ones it uses — see `header.fill` and `footer.fill` — which is what keeps a strongly coloured band from dragging the quotations and the code along with it, since those are drawn on `band` too.",
+      "type": "object",
+      "properties": {
+        "band": {
+          "$ref": "#/$defs/colour",
+          "description": "fill of the header and footer bands"
+        },
+        "rule": {
+          "$ref": "#/$defs/colour",
+          "description": "the thin line along a band's inner edge"
+        },
+        "accent": {
+          "$ref": "#/$defs/colour",
+          "description": "headings, list markers, links"
+        },
+        "ink": {
+          "$ref": "#/$defs/colour",
+          "description": "body text"
+        },
+        "muted": {
+          "$ref": "#/$defs/colour",
+          "description": "running header, placeholder rules"
+        },
+        "highlight": {
+          "$ref": "#/$defs/colour",
+          "description": "a footer row that must catch the eye"
+        },
+        "hairline": {
+          "$ref": "#/$defs/colour",
+          "description": "rules between sections and table rows"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/colour"
+      }
+    },
+    "fonts": {
+      "type": "object",
+      "properties": {
+        "serif": {
+          "$ref": "#/$defs/fontStack",
+          "description": "Each entry is a fallback stack: the first font installed wins. Typst carries Libertinus Serif, New Computer Modern and DejaVu Sans Mono itself, so the serif and mono stacks resolve on any machine; there is no sans face inside Typst, and the sans stack names the ones that come with macOS, Windows and the common Linux font packages in turn. `mela-letterhead check` reports which one you are actually getting."
+        },
+        "sans": {
+          "$ref": "#/$defs/fontStack"
+        },
+        "display": {
+          "$ref": "#/$defs/fontStack",
+          "description": "Used for the footer band. Defaults to the serif stack."
+        },
+        "mono": {
+          "$ref": "#/$defs/fontStack"
+        },
+        "paths": {
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ],
+          "description": "Directories of font files to load in addition to the system's."
+        }
+      },
+      "additionalProperties": false
+    },
+    "typography": {
+      "type": "object",
+      "properties": {
+        "size": {
+          "$ref": "#/$defs/length"
+        },
+        "leading": {
+          "$ref": "#/$defs/length",
+          "description": "Leading and spacing are multiples of the font size, so they follow whatever text they are applied to."
+        },
+        "paragraph_spacing": {
+          "$ref": "#/$defs/length"
+        },
+        "justify": {
+          "type": "boolean"
+        },
+        "hyphenate": {
+          "type": "boolean"
+        },
+        "headings": {
+          "type": "object",
+          "properties": {
+            "h1": {
+              "$ref": "#/$defs/length"
+            },
+            "h2": {
+              "$ref": "#/$defs/length"
+            },
+            "h3": {
+              "$ref": "#/$defs/length"
+            },
+            "h4": {
+              "$ref": "#/$defs/length"
+            }
+          },
+          "additionalProperties": false
+        },
+        "table_size": {
+          "$ref": "#/$defs/length"
+        },
+        "quote_size": {
+          "$ref": "#/$defs/length"
+        },
+        "code_size": {
+          "$ref": "#/$defs/length",
+          "description": "Inline code, relative to the surrounding text."
+        }
+      },
+      "additionalProperties": false
+    },
+    "images": {
+      "description": "Pictures in the body: photographs, drawings, plates of previous work. Their files are read relative to the document that names them.",
+      "type": "object",
+      "properties": {
+        "width": {
+          "oneOf": [
+            {
+              "enum": [
+                "auto",
+                "natural"
+              ]
+            },
+            {
+              "$ref": "#/$defs/length"
+            }
+          ],
+          "description": "Width of an image that gives none of its own, as a share of the column: \"70%\", or the fraction 0.7. `auto` prints it at its natural size, shrunk to the column when it is wider — which is the only setting that leaves a small mark small."
+        },
+        "align": {
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ],
+          "description": "Where a figure sits in the column. An image without a caption stays inline in the text it was written in, and follows the paragraph."
+        },
+        "frame": {
+          "type": "boolean",
+          "description": "A hairline around the image. Worth turning on for artwork that runs pale at the edges, which would otherwise bleed into the paper."
+        },
+        "numbered": {
+          "type": "boolean",
+          "description": "Number the figures (\"Figure 1: ...\"). The word is Typst's own and follows the document's language."
+        },
+        "caption": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "$ref": "#/$defs/length"
+            },
+            "gap": {
+              "$ref": "#/$defs/length",
+              "description": "Between the image and its caption."
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "header": {
+      "type": "object",
+      "properties": {
+        "show": {
+          "type": "boolean"
+        },
+        "height": {
+          "$ref": "#/$defs/length"
+        },
+        "gap": {
+          "$ref": "#/$defs/length",
+          "description": "Space between the band and the first line of text on page one."
+        },
+        "rule": {
+          "$ref": "#/$defs/length",
+          "description": "Thickness of the accent line along the band's lower edge."
+        },
+        "fill": {
+          "$ref": "#/$defs/colour",
+          "description": "The band's own colours. Each falls back to the palette, so a band is recoloured on its own: `fill` for the ground, `ink` for the fields printed on it, `muted` for the rule drawn where a value is missing, and `rule_color` for the line along the lower edge."
+        },
+        "ink": {
+          "$ref": "#/$defs/colour"
+        },
+        "muted": {
+          "$ref": "#/$defs/colour"
+        },
+        "rule_color": {
+          "$ref": "#/$defs/colour"
+        },
+        "logo": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "$ref": "#/$defs/length"
+            },
+            "y": {
+              "$ref": "#/$defs/length",
+              "description": "from the top of the page"
+            }
+          },
+          "additionalProperties": false
+        },
+        "fields": {
+          "type": "object",
+          "properties": {
+            "y": {
+              "$ref": "#/$defs/length"
+            },
+            "align": {
+              "enum": [
+                "left",
+                "center",
+                "right"
+              ]
+            },
+            "size": {
+              "$ref": "#/$defs/length"
+            },
+            "leading": {
+              "$ref": "#/$defs/length"
+            },
+            "label_gap": {
+              "$ref": "#/$defs/length"
+            },
+            "blank_width": {
+              "$ref": "#/$defs/length",
+              "description": "Width of the rule drawn in place of a value left empty."
+            },
+            "when_empty": {
+              "enum": [
+                "rule",
+                "blank",
+                "hide"
+              ],
+              "description": "What to do with a field whose value is empty:   rule  — print a line to fill in by hand (the default)   blank — print the label and nothing after it   hide  — leave the field out entirely"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/headerField"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "running": {
+      "description": "The reduced header of every page after the first.",
+      "type": "object",
+      "properties": {
+        "show": {
+          "type": "boolean"
+        },
+        "logo_width": {
+          "$ref": "#/$defs/length"
+        },
+        "logo_y": {
+          "$ref": "#/$defs/length"
+        },
+        "text_y": {
+          "$ref": "#/$defs/length"
+        },
+        "align": {
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        "size": {
+          "$ref": "#/$defs/length"
+        },
+        "tracking": {
+          "$ref": "#/$defs/length"
+        },
+        "rule": {
+          "$ref": "#/$defs/length",
+          "description": "Hairline under the running header. Set to 0 to remove it."
+        },
+        "rule_y": {
+          "$ref": "#/$defs/length"
+        },
+        "format": {
+          "$ref": "#/$defs/text",
+          "description": "Overrides the locale pack's `running_header`."
+        }
+      },
+      "additionalProperties": false
+    },
+    "footer": {
+      "type": "object",
+      "properties": {
+        "show": {
+          "type": "boolean"
+        },
+        "pages": {
+          "enum": [
+            "last",
+            "all"
+          ],
+          "description": "\"last\" prints the band on the final page only; \"all\" on every page. Not spelled `on`, which YAML reads as the boolean true."
+        },
+        "height": {
+          "$ref": "#/$defs/length"
+        },
+        "gap": {
+          "$ref": "#/$defs/length",
+          "description": "Clearance between the band and the last line of text above it."
+        },
+        "rule": {
+          "$ref": "#/$defs/length"
+        },
+        "fill": {
+          "$ref": "#/$defs/colour",
+          "description": "As in `header`, with `highlight` for the one row that has to catch the eye. All four fall back to the palette."
+        },
+        "ink": {
+          "$ref": "#/$defs/colour"
+        },
+        "muted": {
+          "$ref": "#/$defs/colour"
+        },
+        "highlight": {
+          "$ref": "#/$defs/colour"
+        },
+        "rule_color": {
+          "$ref": "#/$defs/colour"
+        },
+        "offset": {
+          "$ref": "#/$defs/length",
+          "description": "Distance from the bottom edge of the page to the band."
+        },
+        "align": {
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        "title_size": {
+          "$ref": "#/$defs/length"
+        },
+        "size": {
+          "$ref": "#/$defs/length"
+        },
+        "leading": {
+          "$ref": "#/$defs/length",
+          "description": "Air between the rows of a column. Kept in the same proportion to the text as the header fields' own leading is to theirs, so both blocks of detail read alike; the band centres its content, so a taller column simply eats into the space above and below it."
+        },
+        "title_gap": {
+          "$ref": "#/$defs/length"
+        },
+        "gutter": {
+          "$ref": "#/$defs/length",
+          "description": "Gutter between columns."
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/footerColumn"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "markdown": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "description": "Passed to Pandoc as --from. Add +hard_line_breaks if you write one sentence per line and want every one of those breaks on paper; with it, a paragraph wrapped at 80 columns prints wrapped at 80 columns."
+        },
+        "rewrite_table_widths": {
+          "type": "boolean",
+          "description": "Recompute table column widths from the content. Pandoc derives Typst column widths from the number of dashes in the separator row, so `|---|---:|` would otherwise give a one-word column half the page."
+        },
+        "drop_horizontal_rules": {
+          "type": "boolean",
+          "description": "Drop `---` rules: the hierarchy is already carried by the rules above headings, and a full-width line on top of that reads as heavy."
+        },
+        "bold_table_header": {
+          "type": "boolean",
+          "description": "Set the header row of a table in bold, so it needs no Typst rule that would also catch tables that have no header."
+        },
+        "extra_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Extra arguments appended to the Pandoc invocation."
+        }
+      },
+      "additionalProperties": false
+    },
+    "pdf": {
+      "type": "object",
+      "properties": {
+        "standard": {
+          "oneOf": [
+            {
+              "enum": [
+                "1.4",
+                "1.5",
+                "1.6",
+                "1.7",
+                "2.0",
+                "a-1b",
+                "a-1a",
+                "a-2b",
+                "a-2u",
+                "a-2a",
+                "a-3b",
+                "a-3u",
+                "a-3a",
+                "a-4",
+                "a-4f",
+                "a-4e",
+                "ua-1"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "1.4",
+                  "1.5",
+                  "1.6",
+                  "1.7",
+                  "2.0",
+                  "a-1b",
+                  "a-1a",
+                  "a-2b",
+                  "a-2u",
+                  "a-2a",
+                  "a-3b",
+                  "a-3u",
+                  "a-3a",
+                  "a-4",
+                  "a-4f",
+                  "a-4e",
+                  "ua-1"
+                ]
+              }
+            }
+          ],
+          "description": "The standards the PDF must conform to, as a name or a list of them. Empty is an ordinary PDF, which is what a letter is.\n\nA document filed with a public administration or kept as a record is usually asked for as PDF/A — `a-2b` and `a-3b` are the common ones — and one that has to be readable by assistive technology as PDF/UA-1. `a-2b` and `ua-1` may be asked for together; `a-4` and `ua-1` may not, because one is PDF 2.0 and the other PDF 1.7.\n\nTypst enforces conformance and refuses what cannot be combined; this setting only carries the request to it. See `pdf.standard` in the README for what each one demands of a document."
+        }
+      },
+      "additionalProperties": false
+    },
+    "documents": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "output": {
+          "type": "string"
+        },
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "date_format": {
+          "type": "string",
+          "description": "YAML reads an unquoted `date: 2026-09-14` as a date, not a string. This is how such a value is printed. Quote the value in the front matter instead to write it exactly as you want it."
+        }
+      },
+      "additionalProperties": false
+    },
+    "letterhead": {
+      "type": "object",
+      "description": "Everything a letterhead can say. A profile is the same object with only the settings it changes in it.",
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Schema version. Bumped only for a change that would misread an old file."
+        },
+        "language": {
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$",
+          "description": "Language used by documents that declare none of their own."
+        },
+        "brand": {
+          "$ref": "#/$defs/brand"
+        },
+        "page": {
+          "$ref": "#/$defs/page"
+        },
+        "palette": {
+          "$ref": "#/$defs/palette"
+        },
+        "fonts": {
+          "$ref": "#/$defs/fonts"
+        },
+        "typography": {
+          "$ref": "#/$defs/typography"
+        },
+        "images": {
+          "$ref": "#/$defs/images"
+        },
+        "header": {
+          "$ref": "#/$defs/header"
+        },
+        "running": {
+          "$ref": "#/$defs/running"
+        },
+        "footer": {
+          "$ref": "#/$defs/footer"
+        },
+        "markdown": {
+          "$ref": "#/$defs/markdown"
+        },
+        "pdf": {
+          "$ref": "#/$defs/pdf"
+        },
+        "documents": {
+          "$ref": "#/$defs/documents"
+        },
+        "build_dir": {
+          "type": "string",
+          "description": "Intermediates live here. Safe to delete, and worth reading when a document does not come out the way you expected."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

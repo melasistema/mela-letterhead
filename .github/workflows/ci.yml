@@ -57,7 +57,14 @@ jobs:
       # would unwrap every one of those lines. The line limit is enforced,
       # how a line gets under it is not.
       - name: ruff
-        run: ruff check src tests
+        run: ruff check src tests tools
+
+      # The schema is generated from DEFAULT_CONFIG and committed, so that
+      # nobody needs the generator to get it. This is what keeps the committed
+      # copy honest: a setting added without regenerating fails here, and in
+      # `tests/test_schema.py`, which asserts the same thing from the suite.
+      - name: Schema is up to date
+        run: python tools/generate_schema.py --check
 
       # `strict`, and against 3.10 — the version the package claims to support,
       # not the one this job happens to run on.

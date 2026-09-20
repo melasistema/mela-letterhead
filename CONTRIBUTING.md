@@ -80,6 +80,26 @@ onto it and anything not in it is refused by name, with a suggestion. So:
 And a test. Settings are cheap to add and expensive to remove, so a new one
 should be one somebody asked for.
 
+Then regenerate the JSON schema:
+
+```bash
+python tools/generate_schema.py
+```
+
+That is not a fourth edit — the schema is generated from `DEFAULT_CONFIG`, and
+your comment from step 1 becomes the tooltip the editor shows — but it is a
+fourth *file* to commit. CI and `tests/test_schema.py` both fail on a stale
+copy, so you will hear about it either way.
+
+It is written to `src/mela_letterhead/assets/letterhead.schema.json`, inside
+the package, because that is what an install carries: `init` copies it into a
+project beside the letterhead, which points at it by a relative path. Nothing
+fetches it from anywhere, and nothing should — a hosted schema is a file to
+serve forever, a network round trip before an editor can help, and a version
+that drifts out of step with the one installed. The practical consequence for
+you is that a setting you add reaches an existing project's editor when its
+owner runs `mela-letterhead schema`, which is what `check` tells them to do.
+
 You do not have to think about the name. A section owns its own key names, so
 `page.margin: { top: 30mm }` is a margin and `header: { ink: "#fff" }` is a
 header, however much `top` and `ink` look like language tags. The exception is
