@@ -24,12 +24,21 @@ pytest tests/test_config.py  # one file
 pytest -k footer_pages       # one test by name
 
 ruff check src tests         # what CI lints
-mypy                         # strict, against Python 3.9
+mypy                         # strict, against Python 3.10
 ```
 
 `tests/test_build.py` shells out to the real Pandoc and the real Typst, and
 skips itself when either is missing — so the rest of the suite runs without the
 toolchain installed. If those tests silently skip, that is why.
+
+**Develop on a Python the package supports.** The floor is 3.10, and the lint
+job checks against it rather than against whatever interpreter the runner
+happens to have. This is not a formality: while the floor was 3.9, a developer
+on it could only install mypy 1.x — 1.20 and 2.0 both need 3.10 to *run* — while
+CI installed 2.x, which refuses `python_version = "3.9"`, warns, and then checks
+against its own interpreter instead. The gate went on passing while it had
+stopped testing what it claimed to. If the floor ever moves again, check that a
+venv on the new floor can still install everything in `dev`.
 
 `ruff format` is deliberately **not** run over this project. The prose in the
 comments and docstrings is wrapped by hand, much shorter than the 100 columns

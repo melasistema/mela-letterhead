@@ -26,7 +26,7 @@ something it merged in is still legal — which is the whole point of merging.
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Callable, Dict, cast
 
 import yaml
 
@@ -65,13 +65,19 @@ class Loader(yaml.SafeLoader):
 
     def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> Dict[Any, Any]:
         seen: Dict[Any, yaml.Mark] = {}
+
+        # Keys are constructed rather than read off the node, because YAML says
+        # `yes` and `true` are the same key and the raw text does not. Bound
+        # through a cast because some generations of the PyYAML stubs annotate
+        # `construct_object` and others do not, and a `type: ignore` that is
+        # right for one is itself an error under the other — which is how this
+        # line failed CI while passing locally. What it returns is whatever the
+        # file says, which is `Any` either way.
+        construct = cast(Callable[..., Any], self.construct_object)
+
         for key_node, _ in node.value:
-            # Constructed rather than read off the node, because YAML says
-            # `yes` and `true` are the same key and the raw text does not.
-            # `construct_object` carries no annotation in types-PyYAML; what it
-            # returns is whatever the file says, which is `Any` regardless.
             try:
-                key = self.construct_object(key_node, deep=deep)  # type: ignore[no-untyped-call]
+                key = construct(key_node, deep=deep)
             except yaml.constructor.ConstructorError:
                 # A key with no constructor of its own. `<<` is the one that
                 # matters — PyYAML resolves a merge in `flatten_mapping` below

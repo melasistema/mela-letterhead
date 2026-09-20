@@ -1,7 +1,7 @@
 # Mela Letterhead
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.9%2B-blue.svg)](pyproject.toml)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](pyproject.toml)
 
 **Write the document in Markdown. Get it back on your own paper.** Mela
 Letterhead puts a real letterhead around a Markdown file — the band across the
@@ -101,7 +101,7 @@ pipx install mela-letterhead
 you run rather than import. `pip install mela-letterhead` works too, inside a
 virtual environment you have activated.
 
-Python 3.9 or newer. The only Python dependency is PyYAML.
+Python 3.10 or newer. The only Python dependency is PyYAML.
 
 Pandoc 3.1 or newer and Typst 0.12 or newer. `mela-letterhead check` prints
 which versions it found, and refuses one it is too old to build with rather
@@ -830,7 +830,7 @@ pip install -e ".[dev]"
 
 pytest              # the suite
 ruff check src tests
-mypy                # strict, against the 3.9 the package claims
+mypy                # strict, against the 3.10 the package claims
 ```
 
 The suite covers unit conversion, language resolution, front matter, the

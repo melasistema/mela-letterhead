@@ -164,17 +164,25 @@ def _column_widths(rows: Sequence[Sequence[str]], column_count: int) -> List[int
     # Raise the columns that fell below their minimum, taking the difference
     # from those above theirs in proportion. Three passes settle any table with
     # a plausible number of columns.
+    #
+    # `strict` throughout: both lists hold one entry per column and are paired
+    # by position, so a length that has drifted is a bug rather than a shorter
+    # loop. Silently, it would cost the last column its width.
     for _ in range(3):
-        debt = sum(low - share for share, low in zip(shares, minimums) if share < low)
+        debt = sum(
+            low - share for share, low in zip(shares, minimums, strict=True) if share < low
+        )
         if debt <= 0:
             break
-        slack = sum(share - low for share, low in zip(shares, minimums) if share > low)
+        slack = sum(
+            share - low for share, low in zip(shares, minimums, strict=True) if share > low
+        )
         if slack <= 0:
             break
         factor = min(1.0, debt / slack)
         shares = [
             low if share < low else share - (share - low) * factor
-            for share, low in zip(shares, minimums)
+            for share, low in zip(shares, minimums, strict=True)
         ]
 
     return [max(3, round(share)) for share in shares]

@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Python 3.10 is the floor.** 3.9 went out of support in October 2025 and the
+  tooling has started to follow: mypy needs 3.10 to run, so a developer on the
+  old floor could only install a checker a version behind the one CI installed —
+  and the newer one, finding a `python_version` it no longer understood, warned
+  and then checked against its own interpreter instead. The gate went on passing
+  while it had quietly stopped testing the version the package claimed to
+  support. Nothing about a letterhead changes; if you are on 3.9, 0.3.2 remains
+  installable and works.
+- A table's column widths are computed with the two per-column lists paired
+  strictly. They have always been the same length and still are, so no table
+  moves — but pairing them loosely meant a length that had drifted would have
+  cost the last column its width without saying anything, and that is now an
+  error instead. Found by the linter the moment the floor made the check
+  available.
+
 ## [0.3.2] — 2026-09-20
 
 ### Fixed

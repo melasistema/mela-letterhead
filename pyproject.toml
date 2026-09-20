@@ -10,7 +10,7 @@ name = "mela-letterhead"
 version = "0.3.2"
 description = "Turn Markdown into branded PDF documents on your own letterhead, in any language, with Pandoc and Typst."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Luca Visciola (Melasistema)" }]
@@ -31,7 +31,6 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -77,21 +76,22 @@ testpaths = ["tests"]
 # lines to fill the column and take the shape out of them. `ruff check`
 # enforces the limit; how a line gets under it stays a judgement.
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 # E and F are the defaults, I keeps the import blocks sorted, B catches the
 # mutable-default and loop-variable-capture traps.
 #
-# UP is deliberately absent. It would rewrite `Dict[str, Any]` to `dict[str,
-# Any]` and `Optional[str]` to `str | None` in 150 places — safe under the
-# `from __future__ import annotations` every module already carries, but pure
-# churn while `requires-python` is still 3.9. It goes in with the 3.10 floor,
-# in one commit that does nothing else.
+# UP is still absent, and now owes the debt it promised. It would rewrite
+# `Dict[str, Any]` to `dict[str, Any]` and `Optional[str]` to `str | None` in
+# 150 places, which the 3.10 floor finally makes plain rather than conditional
+# on `from __future__ import annotations`. It goes in next, in one commit that
+# does nothing else — mixed into a release that also changes behaviour, a diff
+# that size hides whatever else is in it.
 select = ["E", "F", "I", "B"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 strict = true
 # The tests monkeypatch freely and are not annotated; `src` is.
 files = ["src"]
