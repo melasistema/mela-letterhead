@@ -114,7 +114,11 @@ belongs in `i18n._RESERVED_KEYS`.
   writer learnt to emit `alt:` in 3.9.0.1, and the floor is 3.1. So a document
   written with descriptions throughout is refused by Typst for having none.
   That is why `toolchain.carries_alt_text` exists and no equivalent Typst gate
-  does: Typst refuses loudly, listing what it accepts, and needs no help.
+  does: Typst refuses loudly, listing what it accepts, and needs no help. It is
+  also why an end-to-end test that asks for such a standard carries
+  `@needs_alt_text` as well as `@needs_toolchain`. Without it the test fails on
+  the Linux job instead of skipping there, and `ua-1` is compiled for real on
+  the macOS and Windows jobs, which install a current Pandoc.
 - **The scaffold's brand is fictional on purpose** (Acme Studio, `*.example`,
   placeholder VAT and IBAN). This repository is public. Never put real business
   details — a VAT number, a codice fiscale, a PEC address, an IBAN — into

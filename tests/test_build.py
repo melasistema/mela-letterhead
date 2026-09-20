@@ -23,6 +23,26 @@ needs_toolchain = pytest.mark.skipif(
     reason="pandoc and typst are both needed for an end-to-end build",
 )
 
+# A standard that wants every picture described cannot be built by a Pandoc
+# below 3.9.0.1, which drops the descriptions on the way — and `builder`
+# refuses it up front rather than letting Typst report a document as missing
+# what it has. That refusal is the feature, asserted in `TestAltTextSupport`;
+# what it means here is that a test *asking* for such a standard needs a Pandoc
+# that can deliver one, and says so instead of failing.
+#
+# This is not a corner case. The Linux CI job installs apt's Pandoc 3.1 on
+# purpose, because that is what Debian users get, so these skip there — and run
+# on the macOS and Windows jobs, which install a current release. A Pandoc that
+# will not answer `--version` is given the benefit of the doubt, the same way
+# `carries_alt_text` gives it.
+needs_alt_text = pytest.mark.skipif(
+    not toolchain.carries_alt_text(toolchain.find("pandoc")),
+    reason=(
+        f"pandoc {toolchain.PANDOC_ALT_TEXT} or newer is needed to carry a "
+        "picture's description as far as the page"
+    ),
+)
+
 
 @pytest.fixture
 def project(tmp_path):
@@ -262,6 +282,7 @@ class TestPdfStandards:
         assert pdf.startswith(b"%PDF-2.0")
         assert self.claims(pdf, "pdfaid:part") == [b"4"]
 
+    @needs_alt_text
     def test_ua_1_needs_no_edit_to_the_scaffold(self, project):
         # The band is drawn as a page artifact and PDF/UA-1 allows no link in
         # one, so `resolve` drops the targets; the scaffold's own drawings
@@ -273,6 +294,7 @@ class TestPdfStandards:
         # instead of guessing the reading order from where the ink sits.
         assert b"/StructTreeRoot" in pdf and b"/MarkInfo" in pdf
 
+    @needs_alt_text
     def test_archival_and_accessible_together(self, project):
         pdf = self.build(project, "[a-3b, ua-1]")
         assert self.claims(pdf, "pdfaid:part") == [b"3"]
@@ -284,6 +306,7 @@ class TestPdfStandards:
         assert pdf.startswith(b"%PDF")
         assert self.claims(pdf, "pdfaid:part") == []
 
+    @needs_alt_text
     def test_a_pair_typst_cannot_satisfy_says_where_it_was_asked_for(self, project):
         # PDF/A-4 is PDF 2.0 and PDF/UA-1 is not. Typst explains that far
         # better than a table kept here would; what it cannot say is that the
@@ -293,6 +316,7 @@ class TestPdfStandards:
         assert "PDF/A-4" in caught.value.message
         assert "pdf.standard" in caught.value.hint
 
+    @needs_alt_text
     def test_a_picture_with_no_description_is_named(self, project):
         letter = project / "example-letter.md"
         text = letter.read_text(encoding="utf-8")
