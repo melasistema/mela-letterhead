@@ -38,7 +38,7 @@ from . import config as config_module
 from . import markdown_prep, toolchain
 from .config import Config
 from .document import Document, discover
-from .errors import BuildError, ConfigError
+from .errors import BuildError, ConfigError, ToolchainError
 
 ASSETS = Path(__file__).parent / "assets"
 
@@ -123,6 +123,8 @@ def build_document(config: Config, source: Path, keep_build: bool = False) -> Bu
     if document.author:
         resolved["document"]["author"] = document.author
 
+    require_alt_text_support(resolved["pdf"]["standard"])
+
     workdir = _stage(config, document, resolved)
 
     body = markdown_prep.prepare(document.body, config.data["markdown"])
@@ -136,7 +138,7 @@ def build_document(config: Config, source: Path, keep_build: bool = False) -> Bu
     output_dir = config.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     pdf = output_dir / f"{document.output_name}.pdf"
-    _run_typst(config, workdir, generated, pdf)
+    _run_typst(config, workdir, generated, pdf, resolved["pdf"]["standard"])
 
     if not keep_build:
         shutil.rmtree(workdir, ignore_errors=True)
@@ -274,6 +276,71 @@ def _stage_images(source_dir: Path, workdir: Path, generated: Path) -> list[str]
     return sorted(set(staged.values()))
 
 
+def _undescribed_pictures(generated: str) -> list[str]:
+    """The pictures in the generated Typst that carry no description.
+
+    Asked only once Typst has refused a document for want of alt text, and
+    never to decide whether it should be refused. Typst says ``missing alt
+    text`` without naming a picture, which in a document carrying a dozen of
+    them is the start of a search rather than the end of one; this supplies the
+    names. Leaving the judgement to Typst is also what keeps a picture
+    described in some way this does not recognise — a ``figure`` given the
+    description instead of the image inside it — from being refused over a
+    reading of the file rather than a fact about it.
+
+    The names are as they stand in the file, which by this point is after
+    :func:`_stage_images` has run: the directory the picture was copied into,
+    then the name it landed under. The caller drops the directory.
+    """
+    return sorted(
+        {
+            _unescape(match.group(2))
+            for match in _IMAGE_CALL_RE.finditer(generated)
+            if "alt:" not in _arguments_of(generated, match.end())
+        }
+    )
+
+
+def _arguments_of(text: str, start: int) -> str:
+    """The rest of a call whose opening bracket has already been passed.
+
+    Scanned rather than matched, because the argument that is being looked for
+    is a description written by a human: ``alt: "the tank (2000 l)"`` closes a
+    bracket the call did not open, and a quotation mark would end the string a
+    pattern was counting on.
+    """
+    depth = 1
+    index = start
+    while index < len(text):
+        char = text[index]
+        if char == "\\":
+            index += 2
+            continue
+        if char == '"':
+            index = _end_of_string(text, index + 1)
+            continue
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if depth == 0:
+                return text[start:index]
+        index += 1
+    return text[start:]
+
+
+def _end_of_string(text: str, index: int) -> int:
+    """The index just past the closing quotation mark of a Typst string."""
+    while index < len(text):
+        if text[index] == "\\":
+            index += 2
+            continue
+        if text[index] == '"':
+            return index + 1
+        index += 1
+    return index
+
+
 def _stage_one_image(
     source_dir: Path, workdir: Path, written: str, taken: dict[Path, str]
 ) -> str:
@@ -357,12 +424,78 @@ def _run_pandoc(config: Config, source: Path, target: Path) -> None:
     toolchain.run(command)
 
 
-def _run_typst(config: Config, workdir: Path, source: Path, target: Path) -> None:
+def _run_typst(
+    config: Config,
+    workdir: Path,
+    source: Path,
+    target: Path,
+    standards: Sequence[str] = (),
+) -> None:
     command = ["typst", "compile", "--root", str(workdir)]
     for path in font_paths(config):
         command += ["--font-path", str(path)]
+    if standards:
+        command += ["--pdf-standard", ",".join(standards)]
     command += [str(source), str(target)]
-    toolchain.run(command)
+
+    if not standards:
+        toolchain.run(command)
+        return
+
+    # Typst is the authority on what a standard demands and on which of them
+    # can be asked for together, and says both precisely. What it cannot say is
+    # where the request came from — its message is about a command-line flag
+    # nobody typed — so that much is added here, along with the names of the
+    # pictures behind the one complaint it makes without naming anything.
+    try:
+        toolchain.run(command)
+    except ToolchainError as exc:
+        raise BuildError(
+            exc.message,
+            hint=_standard_hint(source, standards, exc.message),
+        ) from exc
+
+
+def _standard_hint(source: Path, standards: Sequence[str], message: str) -> str:
+    asked = f"Asked for by 'pdf.standard: [{', '.join(standards)}]'."
+    if "alt text" not in message:
+        return asked
+    undescribed = _undescribed_pictures(source.read_text(encoding="utf-8"))
+    if not undescribed:
+        return asked
+    named = ", ".join(path.rpartition("/")[2] for path in undescribed)
+    return (
+        f"{asked} Without a description: {named}. Write one in the square "
+        "brackets — ![a roof plan, with the plates numbered](plate.svg) — "
+        "saying what the picture says rather than that there is a picture."
+    )
+
+
+def require_alt_text_support(standards: Sequence[str]) -> None:
+    """Refuse an accessible standard to a Pandoc that drops the descriptions.
+
+    Public because ``check`` asks it too: this is the one thing about a
+    ``pdf.standard`` that can be settled without compiling anything, and it is
+    also the one that would otherwise be reported as a document's fault. An old
+    Pandoc does not fail — it writes the picture and leaves the description
+    behind — so the build gets as far as Typst and is refused there for want of
+    alt text the document plainly has.
+    """
+    wanted = sorted(set(standards) & config_module.PDF_STANDARDS_NEEDING_ALT_TEXT)
+    if not wanted:
+        return
+    pandoc = toolchain.find("pandoc")
+    if not pandoc.available or toolchain.carries_alt_text(pandoc):
+        return
+    raise ConfigError(
+        f"pdf.standard: {', '.join(wanted)} needs every picture described, and "
+        f"pandoc {pandoc.version} does not carry a description into the page",
+        hint=f"Pandoc {toolchain.PANDOC_ALT_TEXT} is the first that does. Until "
+        "then the descriptions are dropped on the way and the document is "
+        "refused for missing what it has. Upgrade Pandoc, or ask for a "
+        "conformance level that does not require it — 'a-2b' and 'a-3b' "
+        "are the archival ones.",
+    )
 
 
 def font_paths(config: Config) -> list[Path]:

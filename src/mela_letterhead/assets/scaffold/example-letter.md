@@ -113,14 +113,25 @@ The verdicts are then summarised twice — as a grading of the four points
 against the threshold below which one is beyond economic repair, and on a plan
 of the roof showing where they sit on the manifold they share.
 
-![](assets/plate-condition.svg){width=48%} ![](assets/plate-roof-plan.svg){width=48%}
+![The four points graded against the repair threshold, with the second and
+third below it](assets/plate-condition.svg){width=48%} ![A plan of the roof
+showing where the four points sit on the manifold they
+share](assets/plate-roof-plan.svg){width=48%}
 
 Those three drawings are ordinary files sitting beside this document, written
-`![caption](assets/plate.svg)` — PNG, JPEG, SVG and WebP all work. The width
-after one, `{width=48%}`, is a share of the column, which is how two of them
-come to stand side by side. A picture given a caption becomes a figure of its
-own, centred, with the caption set beneath it; one given none stays in the line
-it was written in.
+`![what the picture shows](assets/plate.svg)` — PNG, JPEG, SVG and WebP all
+work. The width after one, `{width=48%}`, is a share of the column, which is
+how two of them come to stand side by side.
+
+What goes in the square brackets is read two ways at once, and both of them
+matter. A picture standing alone in its paragraph becomes a figure — centred,
+with those words set beneath it as the caption. Two written side by side, as
+the pair above are, stay in the line they were written in and print nothing.
+Either way the words are carried into the PDF as the picture's description,
+which is what a screen reader announces in place of it, and what `pdf.standard`
+requires under PDF/UA-1 and the `a` levels of PDF/A. So they are worth writing
+even where they will not be seen: say what the picture says, not that there is
+a picture.
 
 ## 7. Acceptance
 

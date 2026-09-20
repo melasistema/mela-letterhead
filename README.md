@@ -65,6 +65,13 @@ point `page.background` at it, turn the bands off, and the tool stops building a
 letterhead and starts setting Markdown onto yours.
 [How](#3--you-already-have-paper).
 
+**A PDF you can file.** `pdf.standard: a-3b` gives you PDF/A, which is what a
+public administration asks for and what an archive needs: every font embedded,
+nothing fetched from anywhere, the same document in ten years as today. Add
+`ua-1` and it is tagged for a screen reader as well. The conformance is
+enforced, not asserted — a document that would not hold up is refused rather
+than written. [How](#a-pdf-you-can-file).
+
 <p align="center">
   <img src="assets/screenshots/04-last-page.png" width="880"
        alt="The last page of the same quotation: two drawings side by side at the top, signature lines rendered as grey monospaced fields below, and at the foot of the page a band with two centred columns — the company's office, telephone, e-mail and VAT number on the left, the bank details with the IBAN in red on the right." />
@@ -556,6 +563,76 @@ neighbour, and the whole block centres itself in the band's height.
 
 ---
 
+## A PDF you can file
+
+By default you get an ordinary PDF, which is what a letter is. Set
+`pdf.standard` when somebody at the other end has asked for something in
+particular.
+
+```yaml
+pdf:
+  standard: a-3b           # or a list: [a-3b, ua-1]
+```
+
+**PDF/A** is the archival form: every font embedded, no colour that depends on
+a profile the reader does not have, nothing fetched from outside. It is what a
+public administration usually means by "send it as a PDF", and what makes a
+document still open the same way in ten years. `a-2b` and `a-3b` are the two in
+common use — A-3 differs from A-2 only in allowing a file to be attached inside
+the PDF, which is how an electronic invoice carries its XML. `a-4` is the newer
+PDF 2.0 edition.
+
+**PDF/UA-1** is the accessible form: the page is tagged so that a screen reader
+can follow it in reading order rather than guessing from where the ink sits, and
+every picture carries a description. The two can be asked for together —
+`[a-3b, ua-1]` is a document that is both filed and readable — with the one
+exception that `a-4` and `ua-1` cannot be combined, because A-4 is PDF 2.0 and
+UA-1 is not.
+
+A PDF/A part before 4 comes in conformance levels, each adding to the one below
+it:
+
+| | what it guarantees |
+|---|---|
+| `a-1b` `a-2b` `a-3b` — level **b**, basic | the document looks the same anywhere, for ever |
+| `a-2u` `a-3u` — level **u**, unicode | and its text can be extracted and searched |
+| `a-1a` `a-2a` `a-3a` — level **a**, accessible | and it is tagged and described, as PDF/UA asks |
+| `a-4` `a-4f` `a-4e` | PDF/A-4 has no levels: `a-4f` additionally allows attached files, `a-4e` is the engineering flavour |
+| `ua-1` | tagging and descriptions, alongside any PDF version up to 1.7 |
+
+Typst enforces conformance and refuses a document that would not hold up, so a
+file that comes out is a file that passed. Two things it refuses are worth
+knowing in advance:
+
+- **Every picture needs a description** under `ua-1` and the `a` levels. That is
+  what goes in the square brackets: `![a plan of the roof, with the four points
+  numbered](plate.svg)`. A picture standing alone in its paragraph also prints
+  those words as its caption; two side by side print nothing and are described
+  all the same. Say what the picture says, not that there is a picture.
+- **PDF/A-1 allows no transparency**, because it is built on PDF 1.4, which had
+  none. A logo or a drawing exported with a soft shadow or a partly transparent
+  fill will be refused. This is the one standard here that may need the artwork
+  changed rather than the configuration; `a-2b` is the same idea without the
+  restriction, and is what almost everybody means.
+
+Two footnotes about the toolchain, both of which `mela-letterhead check`
+reports:
+
+- Descriptions are carried from your Markdown into the page by Pandoc, and only
+  from **Pandoc 3.9.0.1** onward. An older one drops them silently, so the
+  document is then refused for missing what it plainly has. `check` says so
+  rather than letting you find out that way.
+- The full set of standards above needs **Typst 0.14**; 0.12 knows only `a-2b`
+  and 0.13 adds `a-3b`.
+
+Under `ua-1` the footer band stops linking. A band is drawn as a page artifact —
+furniture rather than content — and PDF/UA-1 allows no link inside one, so the
+e-mail address and any `link:` you wrote print as plain text. Nothing moves on
+the page; the underline goes, because an underline that is not a link is a lie
+about the page.
+
+---
+
 ## Languages
 
 This is the part worth reading twice, because it is what separates this from a
@@ -640,7 +717,7 @@ document that names it:
 ```markdown
 ![Each point is drawn to this arrangement.](assets/plate.svg){width=82%}
 
-![](assets/left.svg){width=48%} ![](assets/right.svg){width=48%}
+![The roof before the work](assets/left.svg){width=48%} ![and after it](assets/right.svg){width=48%}
 ```
 
 PNG, JPEG, GIF, SVG and WebP are what Typst can place; anything else is refused
@@ -649,10 +726,16 @@ which the tool will not go and fetch. The width after a picture is a share of
 the column — which is what puts two of them side by side, as in the second line
 above.
 
-A picture given a caption becomes a **figure**: a block of its own, centred,
-with the caption set underneath in the sans face. A picture given none stays
-inline in the paragraph it was written in. The rest is `images:` in the
-configuration:
+What you write in the square brackets is read two ways at once. A picture
+standing alone in its paragraph becomes a **figure** — a block of its own,
+centred, with those words set underneath in the sans face as the caption. Two
+written side by side, as in the second line above, stay inline in the paragraph
+and print nothing. Either way the words are carried into the PDF as the
+picture's **description**, which is what a screen reader announces in place of
+it and what [`pdf.standard`](#a-pdf-you-can-file) requires under PDF/UA-1. So
+they are worth writing even where they will not be seen.
+
+The rest is `images:` in the configuration:
 
 | Setting | Does |
 | --- | --- |
@@ -809,6 +892,17 @@ the body clears the design, and `page.margin.bottom` until it clears the foot.
 
 **A document ends on a page holding nothing but the bands.** The footer reserves
 its room at the end of the body. Trim the text, or raise `page.margin.bottom`.
+
+**A standard is refused for missing alt text the document has.** Check the
+Pandoc version. Below 3.9.0.1 the Typst writer drops a picture's description on
+the way, so what you wrote never reaches the page and the compiler is telling
+you the truth about a document it never saw whole. `mela-letterhead check` says
+this outright when `pdf.standard` asks for `ua-1` or an `a` level.
+
+**A standard is refused and the message names no picture.** It will now — the
+error carries the file names that carry no description, which Typst's own
+message does not. If it names none at all, the description is somewhere the
+tool did not look; write it in the square brackets rather than in raw Typst.
 
 **A table column is too narrow for a long unbroken value.** IBANs and reference
 numbers cannot be hyphenated in any language; the width calculation already

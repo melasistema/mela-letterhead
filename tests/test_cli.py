@@ -10,7 +10,7 @@ import shutil
 
 import pytest
 
-from mela_letterhead import __version__, cli
+from mela_letterhead import __version__, cli, toolchain
 
 needs_toolchain = pytest.mark.skipif(
     shutil.which("pandoc") is None or shutil.which("typst") is None,
@@ -233,6 +233,57 @@ class TestMarksFitTheStream:
         self.as_though(monkeypatch, "cp1252")
         _, out = check(tmp_path, capsys)
         out.encode("cp1252")  # as the Windows console would have to
+
+
+class TestCheckAndThePdfStandard:
+    """What `check` can and cannot say about a standard.
+
+    It compiles nothing, so conformance is not its to judge. The half that is
+    about this machine rather than about the document — whether the Pandoc
+    installed here carries a picture's description as far as the page — is,
+    and it is the half that would otherwise be reported as the document's
+    fault by a compiler two steps further on.
+    """
+
+    @needs_toolchain
+    def test_the_standards_asked_for_are_reported(self, tmp_path, capsys):
+        status, out = check(tmp_path, capsys, config=SOUND + "pdf:\n  standard: [a-3b]\n")
+        assert "a-3b" in out
+        assert status == 0
+
+    @needs_toolchain
+    def test_nothing_asked_for_says_nothing(self, tmp_path, capsys):
+        _, out = check(tmp_path, capsys)
+        assert "pdf standard" not in out
+
+    def test_an_unknown_standard_is_a_problem(self, tmp_path, capsys):
+        status, out = check(tmp_path, capsys, config=SOUND + "pdf:\n  standard: [a2b]\n")
+        assert status == 1
+        assert "pdf.standard" in out and "a-2b" in out
+
+    def test_an_old_pandoc_is_a_problem_for_an_accessible_standard(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        monkeypatch.setattr(
+            toolchain,
+            "find",
+            lambda name: toolchain.Tool(name, f"/{name}", "3.1" if name == "pandoc" else "0.15.1"),
+        )
+        status, out = check(tmp_path, capsys, config=SOUND + "pdf:\n  standard: [ua-1]\n")
+        assert status == 1
+        assert "pdf.standard" in out
+        assert toolchain.PANDOC_ALT_TEXT in out
+
+    def test_the_same_pandoc_is_no_problem_for_an_archival_one(
+        self, tmp_path, capsys, monkeypatch
+    ):
+        monkeypatch.setattr(
+            toolchain,
+            "find",
+            lambda name: toolchain.Tool(name, f"/{name}", "3.1" if name == "pandoc" else "0.15.1"),
+        )
+        _, out = check(tmp_path, capsys, config=SOUND + "pdf:\n  standard: [a-3b]\n")
+        assert toolchain.PANDOC_ALT_TEXT not in out
 
 
 class TestCheckFindsTheFilesTheLetterheadNames:

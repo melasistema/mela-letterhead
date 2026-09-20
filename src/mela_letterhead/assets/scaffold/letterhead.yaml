@@ -283,6 +283,29 @@ markdown:
   # Set a table's header row in bold.
   bold_table_header: true
 
+# ── What kind of PDF comes out ──────────────────────────────────────────────
+pdf:
+  # Leave this empty and you get an ordinary PDF, which is what a letter is.
+  #
+  # Set it when somebody at the other end has asked for something in
+  # particular. A document filed with a public administration, or kept as a
+  # record for years, is usually wanted as PDF/A — every font embedded, nothing
+  # fetched from outside, so that it still reads the same in a decade:
+  #
+  #   standard: a-3b
+  #
+  # One that has to be readable by assistive technology is wanted as PDF/UA-1,
+  # which additionally needs a description on every picture. The two can be
+  # asked for together:
+  #
+  #   standard: [a-3b, ua-1]
+  #
+  # a-2b and a-3b are the archival ones in common use; a-4 is the newer PDF 2.0
+  # edition and cannot be combined with ua-1, because the two are built on
+  # different versions of PDF. Typst checks conformance and will refuse the
+  # document rather than write one that does not hold up.
+  standard: []
+
 # ── Which files get built, and where they land ──────────────────────────────
 documents:
   source: .

@@ -512,6 +512,81 @@ class TestFooterRows:
             config_module.resolve(make_config(tmp_path, text), make_document(tmp_path), "en")
 
 
+class TestPdfStandard:
+    def _resolve(self, tmp_path, written):
+        text = MINIMAL + f"pdf:\n  standard: {written}\n"
+        return config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), "en"
+        )
+
+    def test_nothing_asked_for_is_the_default(self, tmp_path):
+        resolved = config_module.resolve(
+            make_config(tmp_path), make_document(tmp_path), "en"
+        )
+        assert resolved["pdf"]["standard"] == []
+
+    def test_one_name_on_its_own(self, tmp_path):
+        assert self._resolve(tmp_path, "a-3b")["pdf"]["standard"] == ["a-3b"]
+
+    def test_a_list_keeps_the_order_it_was_written_in(self, tmp_path):
+        resolved = self._resolve(tmp_path, "[ua-1, a-3b]")
+        assert resolved["pdf"]["standard"] == ["ua-1", "a-3b"]
+
+    def test_a_name_is_read_however_it_is_cased(self, tmp_path):
+        assert self._resolve(tmp_path, "[A-3B]")["pdf"]["standard"] == ["a-3b"]
+
+    def test_the_same_name_twice_is_the_same_request(self, tmp_path):
+        assert self._resolve(tmp_path, "[a-3b, a-3b]")["pdf"]["standard"] == ["a-3b"]
+
+    def test_an_unknown_name_is_refused_with_the_nearest_one(self, tmp_path):
+        with pytest.raises(ConfigError, match="pdf.standard") as caught:
+            self._resolve(tmp_path, "a2b")
+        assert "a-2b" in caught.value.hint
+
+    def test_something_that_is_not_a_name_is_refused(self, tmp_path):
+        with pytest.raises(ConfigError, match="pdf.standard"):
+            self._resolve(tmp_path, "[3]")
+
+    # Which combinations are legal is Typst's to answer, not this module's, so
+    # an impossible pair resolves here and is refused at the compile.
+    def test_an_impossible_pair_still_resolves(self, tmp_path):
+        assert self._resolve(tmp_path, "[a-4, ua-1]")["pdf"]["standard"] == [
+            "a-4",
+            "ua-1",
+        ]
+
+
+class TestFooterLinksUnderUa1:
+    def _rows(self, tmp_path, standard="[]"):
+        text = MINIMAL + f"pdf:\n  standard: {standard}\n"
+        resolved = config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), "en"
+        )
+        return resolved["footer"]["columns"][0]["rows"]
+
+    def test_a_target_survives_an_archival_standard(self, tmp_path):
+        assert self._rows(tmp_path, "a-3b")[2]["link"] == "mailto:hello@acme.example"
+
+    def test_ua_1_drops_the_target_and_keeps_the_text(self, tmp_path):
+        row = self._rows(tmp_path, "ua-1")[2]
+        assert row["link"] is None
+        assert row["value"] == "hello@acme.example"
+
+    def test_a_target_written_by_hand_goes_too(self, tmp_path):
+        text = MINIMAL.replace(
+            "        - hello@acme.example",
+            "        - label: Web\n          value: acme.example\n"
+            "          link: https://acme.example",
+        )
+        resolved = config_module.resolve(
+            make_config(tmp_path, text + "pdf:\n  standard: [a-2b, ua-1]\n"),
+            make_document(tmp_path),
+            "en",
+        )
+        row = resolved["footer"]["columns"][0]["rows"][2]
+        assert row["link"] is None and row["value"] == "acme.example"
+
+
 class TestValidation:
     def test_footer_pages_takes_only_last_or_all(self, tmp_path):
         config = make_config(

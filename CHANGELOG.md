@@ -6,6 +6,67 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`pdf.standard`: a PDF you can file.** Until now the tool wrote a generic
+  PDF 1.7, which is fine for a letter and not enough for a document that has to
+  be filed with a public administration or kept as a record. Set
+  `pdf.standard: a-3b` and what comes out is PDF/A — every font embedded,
+  nothing fetched from outside, the same document in ten years as today. Set
+  `[a-3b, ua-1]` and it is tagged for a screen reader as well. Every standard
+  Typst enforces is accepted: the four PDF/A parts at each of their conformance
+  levels, PDF/UA-1, and a bare PDF version. The conformance is enforced rather
+  than asserted — a document that would not hold up is refused instead of
+  written.
+- The scaffold builds to PDF/UA-1 with nothing edited, which is the test that
+  the two changes below are real rather than nominal.
+
+### Changed
+
+- The footer band stops linking when `ua-1` is asked for. A band is drawn as a
+  page artifact — furniture, not content — and PDF/UA-1 allows no link inside
+  one, so the e-mail address and anything given a `link:` print as the plain
+  text they always were. Nothing reflows; the underline goes with the target,
+  since an underline that is not a link is a lie about the page. This is
+  settled where the letterhead is resolved, so the Typst module never learns
+  that a standard was asked for.
+- The two drawings the example document sets side by side now carry
+  descriptions, and the paragraph beneath them says why: what goes in the
+  square brackets is a caption when a picture stands alone in its paragraph,
+  and a description read aloud in place of the picture in every case. The
+  scaffold asked for neither before, and was the reason its own pages could not
+  be made accessible.
+- A version string is read however many components it has. Pandoc numbers its
+  releases with four, and the fourth is not decoration here: the Typst writer
+  learnt to carry a picture's description in 3.9.0.1, and a pattern that
+  stopped at three read that as 3.9.0 and would have called the release too old
+  for its own feature.
+
+### Fixed
+
+- Two things that would have been reported as the document's fault are now
+  reported as what they are, before the compiler ever sees the document:
+
+  - An accessible standard asked of a Pandoc older than 3.9.0.1, which drops a
+    picture's description on its way to the page. Nothing fails; the
+    description simply never arrives, and the document is then refused for
+    missing what it plainly has. `check` says so, naming both versions.
+  - A misspelled standard, which reached the user as a complaint about a
+    command-line flag nobody typed. It is now refused where it was written,
+    with the nearest name that exists.
+
+  Which standards may be combined is deliberately not checked here. That is a
+  question about PDF versions that Typst answers precisely — `a-4` and `ua-1`
+  as having no overlapping version, two PDF/A parts as one too many — and a
+  second copy of that table would be one to keep in step with a compiler still
+  gaining entries. What Typst cannot say is where the request came from, so the
+  setting and the file are named alongside whatever it said.
+
+- A document refused for want of alt text now names the pictures that lack it.
+  Typst reports `missing alt text` without saying which picture, which in a
+  document carrying a dozen of them is the start of a search rather than the
+  end of one.
+
 ## [0.3.3] — 2026-09-20
 
 ### Changed

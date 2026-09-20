@@ -308,6 +308,21 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # Extra arguments appended to the Pandoc invocation.
         "extra_args": [],
     },
+    "pdf": {
+        # The standards the PDF must conform to, as a name or a list of them.
+        # Empty is an ordinary PDF, which is what a letter is.
+        #
+        # A document filed with a public administration or kept as a record is
+        # usually asked for as PDF/A — `a-2b` and `a-3b` are the common ones —
+        # and one that has to be readable by assistive technology as PDF/UA-1.
+        # `a-2b` and `ua-1` may be asked for together; `a-4` and `ua-1` may not,
+        # because one is PDF 2.0 and the other PDF 1.7.
+        #
+        # Typst enforces conformance and refuses what cannot be combined; this
+        # setting only carries the request to it. See `pdf.standard` in the
+        # README for what each one demands of a document.
+        "standard": [],
+    },
     "documents": {
         "source": ".",
         "output": ".",
@@ -353,6 +368,44 @@ _BORDER_SIDES: dict[str, tuple[str, ...]] = {
     "x": ("left", "right"),
     "y": ("top", "bottom"),
 }
+
+#: The PDF standards `pdf.standard` accepts, which are the ones Typst enforces.
+#: Each is a PDF version, a PDF/A part and conformance level, or PDF/UA-1.
+#:
+#: Only the names are checked here, and deliberately not the combinations. Which
+#: of these may be asked for together is a question about PDF versions that the
+#: ISO standards settle and Typst already answers precisely — `a-4` and `ua-1`
+#: are refused as having no overlapping version, two PDF/A parts as one too
+#: many. Restating that here would be a second copy of a table to keep in step
+#: with a compiler that is still gaining entries. A name, though, is worth
+#: catching: mistype one and the error comes from a command-line flag nobody
+#: typed, naming neither this setting nor the file it is written in.
+PDF_STANDARDS = (
+    "1.4",
+    "1.5",
+    "1.6",
+    "1.7",
+    "2.0",
+    "a-1b",
+    "a-1a",
+    "a-2b",
+    "a-2u",
+    "a-2a",
+    "a-3b",
+    "a-3u",
+    "a-3a",
+    "a-4",
+    "a-4f",
+    "a-4e",
+    "ua-1",
+)
+
+#: The standards that require every picture to carry a description. These are
+#: the accessible ones: PDF/UA-1, and the `a` conformance level of each PDF/A
+#: part, which is the level that adds the accessibility requirements to it.
+#: Measured against Typst 0.15: the `b` and `u` levels compile the scaffold
+#: without complaint, and these four refuse it.
+PDF_STANDARDS_NEEDING_ALT_TEXT = frozenset({"a-1a", "a-2a", "a-3a", "ua-1"})
 
 
 class Config:
@@ -475,9 +528,14 @@ def resolve(config: Config, document: Document, language: str) -> dict[str, Any]
     }
     fonts = resolve_fonts(data["fonts"])
 
+    pdf = _resolve_pdf(data["pdf"])
+
     header = _resolve_header(data["header"], document, palette)
     running = _resolve_running(data["running"], strings, data["brand"], document)
-    footer = _resolve_footer(data["footer"], palette)
+    # The footer band is the one place in the letterhead that can carry a link,
+    # and PDF/UA-1 does not allow one there. Settled here rather than in Typst,
+    # which never learns that a standard was asked for.
+    footer = _resolve_footer(data["footer"], palette, links="ua-1" not in pdf["standard"])
 
     # The first page starts below the header band; the inner pages keep the
     # ordinary top margin. Typst has one top margin per page, so the difference
@@ -536,6 +594,7 @@ def resolve(config: Config, document: Document, language: str) -> dict[str, Any]
             "background": _resolve_background(data["page"]["background"]),
         },
         "palette": palette,
+        "pdf": pdf,
         "fonts": fonts,
         "typography": _resolve_typography(data["typography"]),
         "images": _resolve_images(data["images"]),
@@ -854,7 +913,45 @@ def _resolve_running(
     }
 
 
-def _resolve_footer(footer: dict[str, Any], palette: dict[str, str]) -> dict[str, Any]:
+def _resolve_pdf(pdf: dict[str, Any]) -> dict[str, Any]:
+    """Settle ``pdf.standard`` into a list of names, in the order written.
+
+    One name may be written on its own; the list form is for asking a document
+    to be both archival and accessible at once, which is the case this setting
+    exists for.
+    """
+    written = pdf.get("standard") or []
+    if isinstance(written, str):
+        written = [written]
+    if not isinstance(written, (list, tuple)):
+        raise ConfigError(
+            f"pdf.standard: expected a name or a list of names, got {written!r}",
+            hint="For example 'a-3b', or [a-3b, ua-1].",
+        )
+
+    standards: list[str] = []
+    for entry in written:
+        if not isinstance(entry, str):
+            raise ConfigError(f"pdf.standard: expected a name, got {entry!r}")
+        name = entry.strip().lower()
+        if name not in PDF_STANDARDS:
+            suggestion = _closest(name, list(PDF_STANDARDS))
+            known = ", ".join(PDF_STANDARDS)
+            raise ConfigError(
+                f"pdf.standard: unknown standard {entry!r}",
+                hint=(f"Did you mean '{suggestion}'? " if suggestion else "")
+                + f"Known standards: {known}.",
+            )
+        # Written twice is not an error, just nothing: the same request.
+        if name not in standards:
+            standards.append(name)
+
+    return {"standard": standards}
+
+
+def _resolve_footer(
+    footer: dict[str, Any], palette: dict[str, str], links: bool = True
+) -> dict[str, Any]:
     pages = str(footer.get("pages", "last")).lower()
     if pages not in ("last", "all"):
         raise ConfigError(
@@ -864,7 +961,9 @@ def _resolve_footer(footer: dict[str, Any], palette: dict[str, str]) -> dict[str
 
     columns = []
     for index, column in enumerate(footer.get("columns") or []):
-        columns.append(_resolve_footer_column(column, f"footer.columns[{index}]"))
+        columns.append(
+            _resolve_footer_column(column, f"footer.columns[{index}]", links=links)
+        )
 
     return {
         "show": bool(footer["show"]) and bool(columns),
@@ -894,7 +993,7 @@ def _resolve_footer(footer: dict[str, Any], palette: dict[str, str]) -> dict[str
     }
 
 
-def _resolve_footer_column(column: Any, where: str) -> dict[str, Any]:
+def _resolve_footer_column(column: Any, where: str, links: bool = True) -> dict[str, Any]:
     if not isinstance(column, dict):
         raise ConfigError(
             f"{where}: expected a mapping with 'title' and 'rows', got {column!r}"
@@ -905,11 +1004,11 @@ def _resolve_footer_column(column: Any, where: str) -> dict[str, Any]:
 
     rows = []
     for index, row in enumerate(column.get("rows") or []):
-        rows.append(_resolve_footer_row(row, f"{where}.rows[{index}]"))
+        rows.append(_resolve_footer_row(row, f"{where}.rows[{index}]", links=links))
     return {"title": title, "rows": rows}
 
 
-def _resolve_footer_row(row: Any, where: str) -> dict[str, Any]:
+def _resolve_footer_row(row: Any, where: str, links: bool = True) -> dict[str, Any]:
     """Expand the three ways a footer row may be written.
 
     ``"Some line"``              a line with no label
@@ -954,6 +1053,13 @@ def _resolve_footer_row(row: Any, where: str) -> dict[str, Any]:
     # An e-mail address gets its link for free, however the row was written.
     if link is None and value and "@" in value and " " not in value:
         link = "mailto:" + value
+    # Under PDF/UA-1 the band is a page artifact and an artifact may hold no
+    # link, so the target is dropped and the address prints as the text it
+    # always was. The underline goes with it — `letterhead.typ` draws one only
+    # under something clickable, and an underline that is not a link is a lie
+    # about the page. Nothing reflows; an underline occupies no width.
+    if not links:
+        link = None
     return {"label": label, "value": value, "link": link, "style": style}
 
 

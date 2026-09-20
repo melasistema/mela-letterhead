@@ -38,6 +38,34 @@ class TestVersionFloor:
         assert toolchain.too_old(toolchain.Tool("sed", "/sed", "0.1")) is False
 
 
+class TestAltText:
+    @pytest.mark.parametrize(
+        "version, expected",
+        [
+            ("3.1", False),  # what apt ships, and what CI tests on purpose
+            ("3.1.11.1", False),
+            ("3.9", False),
+            # The fourth component is the whole of the difference here: the
+            # Typst writer learnt to carry a description in 3.9.0.1, so 3.9.0
+            # is the last release without it.
+            ("3.9.0", False),
+            ("3.9.0.1", True),
+            ("3.9.1", True),
+            ("3.11", True),
+            ("4.0", True),
+        ],
+    )
+    def test_the_floor_counts_every_component(self, version, expected):
+        tool = toolchain.Tool("pandoc", "/pandoc", version)
+        assert toolchain.carries_alt_text(tool) is expected
+
+    def test_a_version_that_could_not_be_read_gets_the_benefit_of_the_doubt(self):
+        # The same licence as `too_old`: let it try, and fail in Typst if it
+        # must, rather than refuse the build over a guess.
+        tool = toolchain.Tool("pandoc", "/pandoc", None)
+        assert toolchain.carries_alt_text(tool) is True
+
+
 class TestRequire:
     def test_a_missing_program_says_how_to_install_it(self, monkeypatch):
         monkeypatch.setattr(toolchain, "find", lambda name: toolchain.Tool(name, None, None))
@@ -58,6 +86,28 @@ class TestRequire:
         tool = toolchain.Tool("typst", "/typst", "0.15.1")
         monkeypatch.setattr(toolchain, "find", lambda name: tool)
         assert toolchain.require("typst") is tool
+
+
+class TestReadingAVersion:
+    @pytest.mark.parametrize(
+        "output, expected",
+        [
+            ("pandoc 3.11\nFeatures: +server\n", "3.11"),
+            # Four components, and the last one is load-bearing — a pattern
+            # that stopped at three would read this as 3.9.0 and call the
+            # release too old for the feature it introduced.
+            ("pandoc 3.9.0.1\n", "3.9.0.1"),
+            ("typst 0.15.1 (unknown commit)\n", "0.15.1"),
+            ("something with no number in it\n", None),
+        ],
+    )
+    def test_however_many_components_it_has(self, monkeypatch, output, expected):
+        monkeypatch.setattr(
+            subprocess,
+            "run",
+            lambda *args, **kwargs: subprocess.CompletedProcess(args, 0, output, ""),
+        )
+        assert toolchain._read_version("/pandoc") == expected
 
 
 class TestRun:

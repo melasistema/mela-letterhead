@@ -32,6 +32,17 @@ DEVELOPED_WITH = {"pandoc": "3.11", "typst": "0.15.1"}
 #: which is a long way from "this needs a newer Typst".
 MINIMUM = {"pandoc": "3.1", "typst": "0.12"}
 
+#: The first Pandoc whose Typst writer carries a picture's description across.
+#: Before it, `![a roof plan](plate.svg)` reached Typst as an `image()` with no
+#: `alt:` argument at all — the description was simply dropped on the way.
+#:
+#: This one is checked where the floor above is not, and the difference is the
+#: reason. Typst refuses a standard it does not know by name, listing the ones
+#: it does; an old Pandoc says nothing, and the only sign of it is Typst
+#: reporting alt text missing from a document that has it written in every
+#: picture. That is not a failure anybody debugs quickly.
+PANDOC_ALT_TEXT = "3.9.0.1"
+
 #: How long either program may run before it is taken to be wedged rather than
 #: busy. Generous on purpose: the four-page scaffold compiles in a fifth of a
 #: second, so two minutes is not a long document, it is a hang.
@@ -103,6 +114,18 @@ def too_old(tool: Tool) -> bool:
     if minimum is None or tool.version is None:
         return False
     return _version_tuple(tool.version) < _version_tuple(minimum)
+
+
+def carries_alt_text(tool: Tool) -> bool:
+    """Whether this Pandoc writes a picture's description into the Typst.
+
+    Like :func:`too_old`, a version that could not be read is given the benefit
+    of the doubt: the build then fails in Typst, which is where it would have
+    failed anyway, rather than here over a guess.
+    """
+    if tool.version is None:
+        return True
+    return _version_tuple(tool.version) >= _version_tuple(PANDOC_ALT_TEXT)
 
 
 def run(command: Sequence[str], cwd: Path | None = None) -> str:
@@ -183,7 +206,11 @@ def _read_version(path: str) -> str | None:
         return None
     if completed.returncode != 0:
         return None
-    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", completed.stdout or "")
+    # However many components it has. Pandoc numbers its releases with four of
+    # them, and the fourth is not decoration: the Typst writer learnt to carry a
+    # picture's description in 3.9.0.1, so a pattern that stopped at three would
+    # read that as 3.9.0 and call the release too old for its own feature.
+    match = re.search(r"(\d+(?:\.\d+)+)", completed.stdout or "")
     return match.group(1) if match else None
 
 

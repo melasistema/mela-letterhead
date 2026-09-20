@@ -5,13 +5,15 @@ missing, so a contributor without the toolchain can still run the rest.
 """
 
 import json
+import re
 import shutil
 
 import pytest
 
-from mela_letterhead import builder, cli
+from mela_letterhead import builder, cli, toolchain
 from mela_letterhead import config as config_module
 from mela_letterhead.builder import ASSETS
+from mela_letterhead.document import Document
 from mela_letterhead.errors import BuildError, ConfigError
 
 SCAFFOLD = ASSETS / "scaffold"
@@ -208,6 +210,194 @@ class TestBuild:
         config = config_module.load(project / "letterhead.yaml")
         results = builder.build_all(config)
         assert results[0].pdf.parent.name == "pdf"
+
+
+@needs_toolchain
+class TestPdfStandards:
+    """The scaffold, compiled to each standard it claims to reach.
+
+    The claim is that a letterhead written this way can be filed, so these
+    build the document that `init` writes rather than a stripped-down one: the
+    two bands, the links in the footer, three drawings and a table are exactly
+    what a standard has something to say about.
+    """
+
+    def build(self, project, standard):
+        text = (project / "letterhead.yaml").read_text(encoding="utf-8")
+        assert "  standard: []" in text, "the scaffold no longer has an empty pdf.standard"
+        (project / "letterhead.yaml").write_text(
+            text.replace("  standard: []", f"  standard: {standard}"), encoding="utf-8"
+        )
+        config = config_module.load(project / "letterhead.yaml")
+        return builder.build_all(config)[0].pdf.read_bytes()
+
+    def claims(self, pdf, tag):
+        """What the PDF's own metadata says it conforms to.
+
+        Asserted on rather than the exit code, and rather than the version in
+        the first line. A compile that succeeded proves Typst found nothing to
+        object to; what a reader at the other end goes by is the identification
+        written into the file, and that is a different thing to have got right.
+        """
+        return re.findall(rf"{tag}>([^<]+)<".encode(), pdf)
+
+    @pytest.mark.parametrize(
+        "standard, part, level",
+        [("a-2b", "2", "B"), ("a-3b", "3", "B"), ("a-2u", "2", "U"), ("a-3u", "3", "U")],
+    )
+    def test_the_archival_standards_identify_themselves(
+        self, project, standard, part, level
+    ):
+        pdf = self.build(project, standard)
+        assert pdf.startswith(b"%PDF-1.7")
+        assert self.claims(pdf, "pdfaid:part") == [part.encode()]
+        assert self.claims(pdf, "pdfaid:conformance") == [level.encode()]
+        # PDF/A embeds the colour space the page is to be read in; without one
+        # the file identifies as something it is not.
+        assert b"/OutputIntent" in pdf
+
+    @pytest.mark.parametrize("standard", ["a-4", "a-4f", "a-4e"])
+    def test_pdf_a_4_is_the_pdf_2_0_edition(self, project, standard):
+        pdf = self.build(project, standard)
+        assert pdf.startswith(b"%PDF-2.0")
+        assert self.claims(pdf, "pdfaid:part") == [b"4"]
+
+    def test_ua_1_needs_no_edit_to_the_scaffold(self, project):
+        # The band is drawn as a page artifact and PDF/UA-1 allows no link in
+        # one, so `resolve` drops the targets; the scaffold's own drawings
+        # carry the descriptions it wants. Both of those are the release, and
+        # this is the test that says so.
+        pdf = self.build(project, "ua-1")
+        assert self.claims(pdf, "pdfuaid:part") == [b"1"]
+        # Tagged, and marked as tagged: the structure a screen reader follows
+        # instead of guessing the reading order from where the ink sits.
+        assert b"/StructTreeRoot" in pdf and b"/MarkInfo" in pdf
+
+    def test_archival_and_accessible_together(self, project):
+        pdf = self.build(project, "[a-3b, ua-1]")
+        assert self.claims(pdf, "pdfaid:part") == [b"3"]
+        assert self.claims(pdf, "pdfuaid:part") == [b"1"]
+
+    def test_nothing_asked_for_still_writes_an_ordinary_pdf(self, project):
+        config = config_module.load(project / "letterhead.yaml")
+        pdf = builder.build_all(config)[0].pdf.read_bytes()
+        assert pdf.startswith(b"%PDF")
+        assert self.claims(pdf, "pdfaid:part") == []
+
+    def test_a_pair_typst_cannot_satisfy_says_where_it_was_asked_for(self, project):
+        # PDF/A-4 is PDF 2.0 and PDF/UA-1 is not. Typst explains that far
+        # better than a table kept here would; what it cannot say is that the
+        # request came out of a file, so that much is added.
+        with pytest.raises(BuildError) as caught:
+            self.build(project, "[a-4, ua-1]")
+        assert "PDF/A-4" in caught.value.message
+        assert "pdf.standard" in caught.value.hint
+
+    def test_a_picture_with_no_description_is_named(self, project):
+        letter = project / "example-letter.md"
+        text = letter.read_text(encoding="utf-8")
+        start = text.index("![A plan of the roof")
+        end = text.index("](assets/plate-roof-plan.svg)")
+        letter.write_text(text[:start] + "![" + text[end:], encoding="utf-8")
+
+        with pytest.raises(BuildError) as caught:
+            self.build(project, "ua-1")
+        # Typst says "missing alt text" and names no picture, which in a
+        # document carrying three of them is the start of a search.
+        assert "plate-roof-plan.svg" in caught.value.hint
+        assert "plate-collection-point.svg" not in caught.value.hint
+
+    def test_the_footer_keeps_its_links_without_ua_1(self, project):
+        config = config_module.load(project / "letterhead.yaml")
+        resolved = config_module.resolve(
+            config, Document.load(project / "example-letter.md"), "en"
+        )
+        rows = [row for column in resolved["footer"]["columns"] for row in column["rows"]]
+        assert any(row["link"] for row in rows), "the scaffold no longer links anything"
+
+
+class TestFindingUndescribedPictures:
+    """Which pictures carry no description, read off the generated Typst.
+
+    Asked only once Typst has refused a document for want of alt text, so what
+    matters is that the names it produces are right — a picture wrongly listed
+    here would send somebody looking at a file that is fine.
+    """
+
+    def test_a_described_picture_is_not_listed(self):
+        source = '#box(image("images/plate.svg", width: 48.0%, alt: "A plate"))\n'
+        assert builder._undescribed_pictures(source) == []
+
+    def test_an_undescribed_one_is(self):
+        source = '#box(image("images/plate.svg", width: 48.0%))\n'
+        assert builder._undescribed_pictures(source) == ["images/plate.svg"]
+
+    def test_a_description_may_close_a_bracket_it_did_not_open(self):
+        # Which is why the call is scanned rather than matched: "(2000 l)" ends
+        # the argument list as far as any pattern counting brackets can tell,
+        # and the `alt:` before it would then belong to nothing.
+        source = '#box(image("images/tank.svg", alt: "The tank (2000 l), full"))\n'
+        assert builder._undescribed_pictures(source) == []
+
+    def test_a_description_may_contain_a_quotation_mark(self):
+        source = '#box(image("images/sign.svg", alt: "The sign reads \\"stop\\""))\n'
+        assert builder._undescribed_pictures(source) == []
+
+    def test_each_picture_is_judged_on_its_own(self):
+        source = (
+            '#box(image("images/a.svg", alt: "A"))\n'
+            '#box(image("images/b.svg"))\n'
+            '#figure(image("images/c.svg", width: 82.0%, alt: "C"),\n'
+            "  caption: [A caption])\n"
+            '#box(image("images/d.svg", width: 20.0%))\n'
+        )
+        assert builder._undescribed_pictures(source) == ["images/b.svg", "images/d.svg"]
+
+    def test_the_same_picture_twice_is_named_once(self):
+        source = '#box(image("images/a.svg"))\n#box(image("images/a.svg"))\n'
+        assert builder._undescribed_pictures(source) == ["images/a.svg"]
+
+
+class TestAltTextSupport:
+    """The one thing about a standard that can be settled without compiling."""
+
+    def _pandoc(self, monkeypatch, version):
+        monkeypatch.setattr(
+            toolchain, "find", lambda name: toolchain.Tool(name, "/pandoc", version)
+        )
+
+    def test_an_archival_standard_does_not_need_it(self, monkeypatch):
+        self._pandoc(monkeypatch, "3.1")
+        builder.require_alt_text_support(["a-2b", "a-3b", "a-4"])
+
+    def test_nothing_asked_for_needs_nothing(self, monkeypatch):
+        self._pandoc(monkeypatch, "3.1")
+        builder.require_alt_text_support([])
+
+    def test_ua_1_on_an_old_pandoc_is_refused_by_name(self, monkeypatch):
+        self._pandoc(monkeypatch, "3.1")
+        with pytest.raises(ConfigError, match="pdf.standard") as caught:
+            builder.require_alt_text_support(["ua-1"])
+        # Both versions, because the sentence has to say what to do about it.
+        assert "3.1" in caught.value.message
+        assert toolchain.PANDOC_ALT_TEXT in caught.value.hint
+
+    def test_the_accessible_levels_of_pdf_a_are_refused_too(self, monkeypatch):
+        self._pandoc(monkeypatch, "3.1")
+        with pytest.raises(ConfigError) as caught:
+            builder.require_alt_text_support(["a-2a"])
+        assert "a-2a" in caught.value.message
+
+    def test_a_pandoc_that_carries_it_passes(self, monkeypatch):
+        self._pandoc(monkeypatch, "3.9.0.1")
+        builder.require_alt_text_support(["ua-1", "a-3a"])
+
+    def test_a_pandoc_that_is_not_there_is_not_this_error(self, monkeypatch):
+        # Reported as a missing program, once, by the section above it.
+        monkeypatch.setattr(
+            toolchain, "find", lambda name: toolchain.Tool(name, None, None)
+        )
+        builder.require_alt_text_support(["ua-1"])
 
 
 class TestStagingImages:

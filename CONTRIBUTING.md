@@ -72,7 +72,10 @@ onto it and anything not in it is refused by name, with a suggestion. So:
    setting is rejected as unknown;
 2. a line in the matching `_resolve_*` function, turning what a human wrote
    into what a program consumes;
-3. a read in `assets/letterhead.typ`.
+3. a read in `assets/letterhead.typ` — or, for the few settings that describe
+   the compile rather than the page, a use in `builder`. `pdf.standard` is the
+   one of those: it resolves like everything else, and `letterhead.typ` never
+   hears of it.
 
 And a test. Settings are cheap to add and expensive to remove, so a new one
 should be one somebody asked for.
@@ -99,6 +102,19 @@ belongs in `i18n._RESERVED_KEYS`.
 - **Pictures are staged after Pandoc, not before.** Pandoc is what says which
   files a document actually uses. A new way of referring to a picture needs
   nothing in `builder` as long as Pandoc still emits an `image()` call.
+- **Let the compiler judge what the compiler can explain.** `pdf.standard`
+  checks the names it was given and stops there. Which standards may be
+  combined is a question about PDF versions that Typst answers precisely, and a
+  copy of that table kept here would be one to keep in step with a compiler
+  still gaining entries. What Typst cannot say is that the request came out of
+  a file, so `builder._run_typst` catches the failure and adds the setting's
+  name — and, for the one complaint Typst makes without naming anything, the
+  pictures that carry no description.
+- **An old Pandoc drops a picture's description without a word.** The Typst
+  writer learnt to emit `alt:` in 3.9.0.1, and the floor is 3.1. So a document
+  written with descriptions throughout is refused by Typst for having none.
+  That is why `toolchain.carries_alt_text` exists and no equivalent Typst gate
+  does: Typst refuses loudly, listing what it accepts, and needs no help.
 - **The scaffold's brand is fictional on purpose** (Acme Studio, `*.example`,
   placeholder VAT and IBAN). This repository is public. Never put real business
   details — a VAT number, a codice fiscale, a PEC address, an IBAN — into

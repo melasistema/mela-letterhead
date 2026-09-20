@@ -269,13 +269,26 @@ def command_check(args: argparse.Namespace) -> int:
     settings_resolve = True
     probe = Document(config.path or Path(config_module.CONFIG_FILENAME), {}, "")
     try:
-        config_module.resolve(config, probe, config.default_language)
+        resolved = config_module.resolve(config, probe, config.default_language)
     except LetterheadError as error:
         settings_resolve = False
         problems += 1
         _problem(error.message, error.hint)
     else:
         print(f"  {_tick()}  every setting resolves")
+
+        # Conformance itself is a question for the compiler, and `check`
+        # compiles nothing. What it can settle is the half that is about this
+        # machine rather than about the document: whether the Pandoc installed
+        # here carries a picture's description as far as the page.
+        standards = resolved["pdf"]["standard"]
+        if standards:
+            print(f"     pdf standard   {', '.join(standards)}")
+            try:
+                builder.require_alt_text_support(standards)
+            except LetterheadError as error:
+                problems += 1
+                _problem(error.message, error.hint)
 
     print()
     print(_bold("Fonts"))
