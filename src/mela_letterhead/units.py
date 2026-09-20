@@ -82,15 +82,21 @@ _PAGE_SIZES_MM: Dict[str, Tuple[float, float]] = {
 }
 
 
-def to_points(value: Union[str, Number], field: str) -> float:
+def to_points(value: Union[str, Number], field: str, positive: bool = True) -> float:
     """Return ``value`` in points.
 
     A bare number is read as points, so ``11`` and ``"11pt"`` agree.
+
+    ``positive`` is false for the few lengths a negative one says something
+    about — tracking, an offset that pushes a band off the edge of the paper,
+    the nudge under a mark. Everywhere else a negative is a typing mistake:
+    a height of ``-5mm`` is not a short band, it is a page Typst lays out in
+    some way nobody intended, and saying so here names the setting.
     """
     if isinstance(value, bool):  # bool is an int; reject it before the number path
         raise ConfigError(f"{field}: expected a length, got a boolean")
     if isinstance(value, (int, float)):
-        return float(value)
+        return _signed(float(value), value, field, positive)
     if not isinstance(value, str):
         raise ConfigError(f"{field}: expected a length such as '22mm', got {value!r}")
 
@@ -101,7 +107,17 @@ def to_points(value: Union[str, Number], field: str) -> float:
             hint="Use a number followed by pt, mm, cm, in or pc — for example '22mm'.",
         )
     amount, unit = match.group(1), (match.group(2) or "pt").lower()
-    return float(amount) * _POINTS_PER_UNIT[unit]
+    return _signed(float(amount) * _POINTS_PER_UNIT[unit], value, field, positive)
+
+
+def _signed(points: float, written: object, field: str, positive: bool) -> float:
+    """Refuse a negative length where a negative length means nothing."""
+    if positive and points < 0:
+        raise ConfigError(
+            f"{field}: {written!r} is not a length this setting can take",
+            hint="This one cannot be negative. Use nought to turn it off.",
+        )
+    return points
 
 
 def to_em(value: Union[str, Number], field: str) -> float:
@@ -182,7 +198,9 @@ def to_share(
         if match is not None and match.group(2):
             if whole <= 0:
                 raise ConfigError(f"{field}: cannot measure {value!r} against nothing")
-            return to_points(value, field) / whole
+            # The same licence as below: tracking written as '-0.4pt' is a share
+            # measured in points, and just as legitimately negative.
+            return to_points(value, field, positive=positive) / whole
 
     if not positive:
         ratio = _plain_number(value, field)

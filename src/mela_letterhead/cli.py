@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -24,11 +25,26 @@ SCAFFOLD_PLATES = (
     "plate-roof-plan.svg",
 )
 
-_USE_COLOUR = sys.stdout.isatty()
+def _use_colour() -> bool:
+    """Whether to paint this line.
+
+    Asked per line rather than once at import, so that a caller who redirects
+    `sys.stdout` — a test, an editor plug-in, anything embedding the command —
+    gets the answer for the stream actually being written to.
+
+    Both conventions are read by presence, not by value: `NO_COLOR=0` is still
+    somebody asking for no colour, and the empty string is how a shell says the
+    variable is not set.
+    """
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    return sys.stdout.isatty()
 
 
 def _paint(text: str, code: str) -> str:
-    return f"\033[{code}m{text}\033[0m" if _USE_COLOUR else text
+    return f"\033[{code}m{text}\033[0m" if _use_colour() else text
 
 
 def _bold(text: str) -> str:
@@ -139,13 +155,20 @@ def command_check(args: argparse.Namespace) -> int:
     print(_bold("Toolchain"))
     for name in ("pandoc", "typst"):
         tool = toolchain.find(name)
-        if tool.available:
+        if not tool.available:
+            problems += 1
+            print(f"  {_red('✗')}  {name} not found on PATH")
+        elif toolchain.too_old(tool):
+            problems += 1
+            minimum = toolchain.MINIMUM[name]
+            print(
+                f"  {_red('✗')}  {name} {tool.version}  "
+                f"{_dim(f'(too old — this needs {minimum} or newer)')}"
+            )
+        else:
             developed = toolchain.DEVELOPED_WITH[name]
             note = _dim(f"(developed against {developed})")
             print(f"  {_green('✓')}  {name} {tool.version or '?'}  {note}")
-        else:
-            problems += 1
-            print(f"  {_red('✗')}  {name} not found on PATH")
 
     print()
     try:

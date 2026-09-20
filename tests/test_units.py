@@ -28,6 +28,21 @@ class TestToPoints:
         with pytest.raises(ConfigError, match="header.height"):
             units.to_points("3 furlongs", "header.height")
 
+    @pytest.mark.parametrize("written", ["-5mm", "-5", -5, -0.5])
+    def test_a_negative_length_is_refused_by_name(self, written):
+        # A band -5mm tall is not a short band; it is a page laid out in some
+        # way nobody intended, and it used to pass without a word.
+        with pytest.raises(ConfigError, match="header.height"):
+            units.to_points(written, "header.height")
+
+    def test_a_negative_is_allowed_where_it_says_something(self):
+        assert units.to_points("-0.2pt", "running.tracking", positive=False) == -0.2
+        assert units.to_points(-3, "footer.offset", positive=False) == -3.0
+
+    def test_nought_is_never_negative(self):
+        assert units.to_points(0, "page.border.width") == 0.0
+        assert units.to_points("0mm", "footer.offset") == 0.0
+
 
 class TestToEm:
     def test_bare_number_and_em_agree(self):

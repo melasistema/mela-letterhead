@@ -19,6 +19,23 @@ from .errors import ToolchainError
 #: what gets reported when something does not.
 DEVELOPED_WITH = {"pandoc": "3.11", "typst": "0.15.1"}
 
+#: The oldest release of each that this can be run on.
+#:
+#: Pandoc's floor is what CI tests on purpose: apt ships 3.1, whose Typst writer
+#: spells two helpers differently, and `assets/pandoc-typst.template` polyfills
+#: exactly those two. Below it nobody has looked.
+#:
+#: Typst's floor is the newest thing `assets/letterhead.typ` asks for, which is
+#: the `std` module the divider polyfill tests against — 0.12. An older Typst
+#: fails inside the module with a message about a name it has never heard of,
+#: which is a long way from "this needs a newer Typst".
+MINIMUM = {"pandoc": "3.1", "typst": "0.12"}
+
+#: How long either program may run before it is taken to be wedged rather than
+#: busy. Generous on purpose: the four-page scaffold compiles in a fifth of a
+#: second, so two minutes is not a long document, it is a hang.
+RUN_TIMEOUT = 120
+
 _INSTALL_HINTS = {
     "pandoc": (
         "Install it with:\n"
@@ -58,14 +75,33 @@ def find(name: str) -> Tool:
 
 
 def require(name: str) -> Tool:
-    """Like :func:`find`, but raise if the program is missing."""
+    """Like :func:`find`, but raise if the program is missing or too old."""
     tool = find(name)
     if not tool.available:
         raise ToolchainError(
             f"{name} is not installed, or not on your PATH",
             hint=_INSTALL_HINTS.get(name, ""),
         )
+    if too_old(tool):
+        raise ToolchainError(
+            f"{name} {tool.version} is too old: this needs {name} "
+            f"{MINIMUM[name]} or newer",
+            hint=_INSTALL_HINTS.get(name, ""),
+        )
     return tool
+
+
+def too_old(tool: Tool) -> bool:
+    """Whether ``tool`` is older than the release this can be run on.
+
+    A version that could not be read is not called too old. It is a program
+    that answered `--version` with something unexpected, and refusing to build
+    over that would be worse than letting it try.
+    """
+    minimum = MINIMUM.get(tool.name)
+    if minimum is None or tool.version is None:
+        return False
+    return _version_tuple(tool.version) < _version_tuple(minimum)
 
 
 def run(command: Sequence[str], cwd: Optional[Path] = None) -> str:
@@ -82,7 +118,17 @@ def run(command: Sequence[str], cwd: Optional[Path] = None) -> str:
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=RUN_TIMEOUT,
         )
+    # TimeoutExpired descends from SubprocessError, not OSError, so it has to be
+    # caught on its own — and before the arm below, which would not see it.
+    except subprocess.TimeoutExpired as exc:
+        raise ToolchainError(
+            f"{Path(command[0]).name} did not finish within {RUN_TIMEOUT} seconds",
+            hint="Something is wedged rather than busy: the four-page example "
+            "builds in a fifth of a second. Run the build again with "
+            "--keep-build and try the command yourself in the build directory.",
+        ) from exc
     except OSError as exc:
         raise ToolchainError(f"could not run {command[0]}: {exc}") from exc
 
@@ -138,3 +184,8 @@ def _read_version(path: str) -> Optional[str]:
         return None
     match = re.search(r"(\d+\.\d+(?:\.\d+)?)", completed.stdout or "")
     return match.group(1) if match else None
+
+
+def _version_tuple(version: str) -> tuple:
+    """A dotted version as numbers, so that 0.9 sorts below 0.12."""
+    return tuple(int(part) for part in re.findall(r"\d+", version))

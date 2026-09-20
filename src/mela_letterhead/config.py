@@ -639,7 +639,9 @@ def _resolve_tagline(
         "tracking": units.to_share(
             written["tracking"], "brand.tagline.tracking", mark_width, positive=False
         ),
-        "gap": units.to_points(written["gap"], "brand.tagline.gap"),
+        # Negative on purpose where it is asked for: a mark with optical
+        # whitespace under it needs the line pulled back up into it.
+        "gap": units.to_points(written["gap"], "brand.tagline.gap", positive=False),
     }
 
 
@@ -836,7 +838,8 @@ def _resolve_running(
         "text_y": units.to_points(running["text_y"], "running.text_y"),
         "align": _alignment(running["align"], "running.align"),
         "size": units.to_points(running["size"], "running.size"),
-        "tracking": units.to_points(running["tracking"], "running.tracking"),
+        # Negative tracking is ordinary typography, not a mistake.
+        "tracking": units.to_points(running["tracking"], "running.tracking", positive=False),
         "rule": units.to_points(running["rule"], "running.rule"),
         "rule_y": units.to_points(running["rule_y"], "running.rule_y"),
         "text": text,
@@ -870,7 +873,9 @@ def _resolve_footer(footer: Dict[str, Any], palette: Dict[str, str]) -> Dict[str
         "rule_color": _colour_or(
             footer["rule_color"], "footer.rule_color", palette["rule"]
         ),
-        "offset": units.to_points(footer["offset"], "footer.offset"),
+        # Negative pushes the band off the bottom edge, which is what a design
+        # that bleeds past the trim asks for.
+        "offset": units.to_points(footer["offset"], "footer.offset", positive=False),
         "align": _alignment(footer["align"], "footer.align"),
         "title_size": units.to_points(footer["title_size"], "footer.title_size"),
         "size": units.to_points(footer["size"], "footer.size"),

@@ -127,6 +127,51 @@ class TestCheckResolvesEachDocument:
         assert "broken.md" in out
 
 
+class TestTheToolchainSection:
+    def test_a_typst_too_old_is_a_problem_not_a_tick(self, tmp_path, capsys, monkeypatch):
+        # The whole point of the floor: an old Typst used to fail inside
+        # letterhead.typ, with a message about a name it had never heard of.
+        monkeypatch.setattr(
+            cli.toolchain,
+            "find",
+            lambda name: cli.toolchain.Tool(name, f"/{name}", "0.9"),
+        )
+        status, out = check(tmp_path, capsys)
+        assert status == 1
+        assert "too old" in out
+        assert cli.toolchain.MINIMUM["typst"] in out
+
+
+class TestColour:
+    """`NO_COLOR` and `FORCE_COLOR`, asked per line rather than at import."""
+
+    def test_nothing_is_painted_into_a_pipe(self, tmp_path, capsys, monkeypatch):
+        monkeypatch.delenv("FORCE_COLOR", raising=False)
+        _, out = check(tmp_path, capsys)  # capsys is not a terminal
+        assert "\033[" not in out
+
+    def test_no_color_wins_over_a_terminal(self, monkeypatch):
+        monkeypatch.setenv("NO_COLOR", "1")
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+        assert cli._bold("x") == "x"
+
+    def test_no_color_is_read_by_presence_not_by_value(self, monkeypatch):
+        # The convention: NO_COLOR=0 is still somebody asking for no colour.
+        monkeypatch.setenv("NO_COLOR", "0")
+        assert cli._bold("x") == "x"
+
+    def test_an_empty_no_color_is_not_set_at_all(self, monkeypatch):
+        monkeypatch.setenv("NO_COLOR", "")
+        monkeypatch.setenv("FORCE_COLOR", "1")
+        assert cli._bold("x") == "\033[1mx\033[0m"
+
+    def test_force_color_paints_into_a_pipe(self, tmp_path, capsys, monkeypatch):
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        monkeypatch.setenv("FORCE_COLOR", "1")
+        _, out = check(tmp_path, capsys)
+        assert "\033[" in out
+
+
 class TestParser:
     def test_no_command_prints_help(self, capsys):
         assert cli.main([]) == 0

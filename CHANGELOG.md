@@ -6,6 +6,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- Pandoc and Typst are now checked against the oldest release this can be run
+  on, not only against the one it was developed with. A Typst below 0.12 used
+  to fail inside `letterhead.typ`, complaining about a name it had never heard
+  of; it is now refused by name, with the version you have and the version you
+  need. `check` reports it as a problem rather than a tick.
+
+### Changed
+
+- `NO_COLOR` and `FORCE_COLOR` are honoured. The decision used to be taken once,
+  when the command was imported, and consulted nothing but whether standard
+  output was a terminal — so a build in a CI log came out full of escape
+  sequences or a terminal came out plain, with no way to say otherwise. Both
+  variables are read by presence, as the convention has it, so `NO_COLOR=0` is
+  still somebody asking for no colour.
+
+### Fixed
+
+- A length that cannot be negative no longer accepts one. `header.height: -5mm`
+  was taken at its word and laid the page out in some way nobody intended; it is
+  now refused where the setting can still be named. The three that mean
+  something negative keep it: `running.tracking`, `footer.offset` — a band that
+  bleeds past the trim — and `brand.tagline.gap`, which pulls the line back up
+  into a mark with whitespace under it.
+- Pandoc and Typst are given two minutes to finish rather than forever. Neither
+  has any business taking that long — the four-page example builds in a fifth of
+  a second — so a build that reached it was wedged, and hung with nothing on
+  screen and nothing to read.
+
 ## [0.2.1] — 2026-09-19
 
 ### Fixed

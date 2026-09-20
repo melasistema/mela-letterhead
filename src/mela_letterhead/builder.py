@@ -62,12 +62,16 @@ _UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 class BuildResult(NamedTuple):
-    """What came of building one document."""
+    """What came of building one document.
+
+    No page count: Typst reports one only to a second invocation — `typst
+    query` against a `#metadata` label the module would have to emit — and
+    nothing reads it yet. That is the route when something does.
+    """
 
     document: Document
     pdf: Path
     language: str
-    pages: Optional[int] = None
 
 
 def build_all(

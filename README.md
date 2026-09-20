@@ -110,6 +110,11 @@ From a clone you can also skip the console script entirely and run
 
 Python 3.9 or newer. The only Python dependency is PyYAML.
 
+Pandoc 3.1 or newer and Typst 0.12 or newer. `mela-letterhead check` prints
+which versions it found, and refuses one it is too old to build with rather
+than letting the failure surface as a compiler error about a name Typst has
+never heard of.
+
 ---
 
 ## Quick start
