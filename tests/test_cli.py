@@ -624,13 +624,17 @@ class TestWatchSignatures:
     def test_a_file_that_is_not_there_is_simply_left_out(self, tmp_path):
         assert cli._watch_signature([tmp_path / "nothing.md"]) == {}
 
-    def test_a_new_file_in_a_watched_directory_is_seen(self, tmp_path):
-        # A directory's own mtime moves when an entry is added to it, which is
-        # what makes a newly written document rebuild without being named.
-        before = cli._watch_signature([tmp_path])
-        os.utime(tmp_path, (2_000_000_000, 2_000_000_000))
-        (tmp_path / "new.md").write_text("new\n", encoding="utf-8")
-        assert cli._changed(before, cli._watch_signature([tmp_path])) == {tmp_path}
+    def test_a_file_that_appears_is_a_change(self, tmp_path):
+        # The other half of the rule above, and what makes a newly written
+        # document rebuild without being named: a path that was not there is
+        # left out of the signature, so arriving in it is a difference. Nothing
+        # here reads the directory's own modification time — POSIX moves that
+        # when an entry is added and Windows does not, and a feature resting on
+        # it would have worked on two platforms out of three.
+        path = tmp_path / "new.md"
+        before = cli._watch_signature([path])
+        path.write_text("new\n", encoding="utf-8")
+        assert cli._changed(before, cli._watch_signature([path])) == {path}
 
     def test_nothing_moving_is_no_change(self, tmp_path):
         path = tmp_path / "doc.md"
@@ -660,9 +664,19 @@ class TestWhatIsWatched:
         assert project / "mark.svg" in watched
         assert project / "doc.md" in watched
         assert plate in watched
-        # The source directory itself, so that a document written while this is
-        # running is picked up on the next pass.
+        # The source directory itself, so that creating one that is not there
+        # counts as a change.
         assert config.source_dir in watched
+
+    def test_a_document_written_since_the_last_pass_is_found(self, tmp_path):
+        # Discovery is re-asked every pass, which is what picks up a document
+        # written while the watch is running. The directory's modification time
+        # is no part of it.
+        project = make_project(tmp_path)
+        config = cli.config_module.load(project / "letterhead.yaml")
+        assert project / "later.md" not in cli._watched(config, None, [])
+        (project / "later.md").write_text("lang: en\n", encoding="utf-8")
+        assert project / "later.md" in cli._watched(config, None, [])
 
     def test_a_named_document_is_watched_and_its_neighbours_are_not(self, tmp_path):
         project = make_project(

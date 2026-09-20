@@ -380,10 +380,13 @@ def _watched(
     two pictures the configuration names, resolved the way a build resolves
     them because either may be written once per language. The documents —
     whichever were named, or whatever `discover` finds now, which is re-asked
-    every pass so that a newly written document is picked up; that is also why
-    the source directory itself is watched, since a directory's own mtime moves
-    when an entry is added to it. And the pictures, which only a build that has
-    already happened can name.
+    every pass so that a newly written document is picked up: it arrives in the
+    next signature as a path that was not in the last one, and `_changed`
+    compares the two key sets rather than only the values they share. Not the
+    directory's own modification time, which POSIX moves when an entry is added
+    and Windows does not — the source directory is watched because creating it
+    is how a missing one gets fixed. And the pictures, which only a build that
+    has already happened can name.
     """
     paths: list[Path] = []
     if config.path is not None:
