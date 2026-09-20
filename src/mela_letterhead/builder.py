@@ -30,7 +30,8 @@ from __future__ import annotations
 import json
 import re
 import shutil
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -61,6 +62,43 @@ _REMOTE_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|data:)", re.IGNORECASE)
 #: so that a name with a space or an accent in it cannot surprise the compiler.
 _UNSAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
+#: Said whenever the build directory turns out not to be writable. It names the
+#: setting rather than the directory, because the setting is the half the user
+#: chose, and it says the directory is disposable because that is what makes
+#: moving it the obvious fix rather than a worrying one.
+_BUILD_DIR_HINT = (
+    "Every document is staged into a directory of its own under 'build_dir' "
+    "before it is compiled. Point that setting somewhere you can write, or fix "
+    "the permissions here. Nothing in it is an input, so moving it loses "
+    "nothing."
+)
+
+
+@contextmanager
+def _attributing(setting: str, where: Path | None = None, hint: str = "") -> Iterator[None]:
+    """Report a filesystem failure against the setting that chose the place.
+
+    Staging is the one part of the pipeline that writes, and it was the one
+    part whose failures did not reach the user as failures: a ``build_dir`` on
+    a read-only mount, or one the user does not own, came out as a
+    ``PermissionError`` from inside ``shutil``, several frames up a traceback,
+    naming a directory the user never typed. Everything else in this tool names
+    the setting behind the trouble, and now this does too.
+
+    Each block is kept narrow enough that the attribution is true. A copy has
+    two ends and either can fail, so a picture's staging is attributed to the
+    picture — the one name that is right whichever end it was.
+
+    ``where`` is left out where naming it would only repeat the name already
+    given, which is the case for a picture: the document wrote
+    ``assets/plate.svg`` and the file is at ``…/assets/plate.svg``.
+    """
+    try:
+        yield
+    except OSError as exc:
+        place = f"{where}: " if where is not None else ""
+        raise BuildError(f"{setting}: {place}{exc.strerror or exc}", hint=hint) from exc
+
 
 class BuildResult(NamedTuple):
     """What came of building one document.
@@ -82,6 +120,28 @@ class BuildResult(NamedTuple):
     inputs: tuple[Path, ...] = ()
 
 
+def discover_documents(config: Config) -> list[Path]:
+    """Every document this configuration selects.
+
+    Public because three commands have to agree about what that is: ``build``
+    builds them, ``check`` reports on them, and ``--watch`` watches them. Any
+    one of the three asking the question differently is a way for ``check`` to
+    pass what ``build`` refuses, which is the failure this project has already
+    had once.
+
+    It is also the only place that knows the build directory holds no
+    documents — see :func:`~mela_letterhead.document.discover` for why that
+    cannot be a pattern in ``documents.exclude``.
+    """
+    documents = config.data["documents"]
+    return discover(
+        config.source_dir,
+        list(documents["include"]),
+        list(documents["exclude"]),
+        skip=config.build_dir,
+    )
+
+
 def build_all(
     config: Config,
     sources: Sequence[Path] | None = None,
@@ -96,14 +156,9 @@ def build_all(
             if not path.is_file():
                 raise BuildError(f"{path}: no such file")
     else:
-        documents = config.data["documents"]
-        paths = discover(
-            config.source_dir,
-            list(documents["include"]),
-            list(documents["exclude"]),
-        )
+        paths = discover_documents(config)
         if not paths:
-            patterns = ", ".join(documents["include"])
+            patterns = ", ".join(config.data["documents"]["include"])
             raise BuildError(
                 f"no documents found in {config.source_dir} matching {patterns}",
                 hint="Name a file explicitly, or adjust 'documents.include' in "
@@ -149,14 +204,22 @@ def build_document(
 
     body = markdown_prep.prepare(document.body, config.data["markdown"])
     prepared = workdir / "body.prep.md"
-    prepared.write_text(body, encoding="utf-8")
+    with _attributing("build_dir", config.build_dir, _BUILD_DIR_HINT):
+        prepared.write_text(body, encoding="utf-8")
 
     generated = workdir / "document.typ"
     _run_pandoc(config, prepared, generated)
     _stage_images(source.parent, workdir, generated, inputs)
 
     output_dir = config.output_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
+    with _attributing(
+        "documents.output",
+        output_dir,
+        hint="This is where the finished PDFs are written. Point "
+        "'documents.output' somewhere you can write, or fix the permissions "
+        "here.",
+    ):
+        output_dir.mkdir(parents=True, exist_ok=True)
     pdf = output_dir / f"{document.output_name}.pdf"
     _run_typst(config, workdir, generated, pdf, resolved["pdf"]["standard"])
 
@@ -181,11 +244,12 @@ def _stage(
 ) -> Path:
     """Create the document's build directory and fill it."""
     workdir = config.build_dir / document.slug
-    if workdir.exists():
-        shutil.rmtree(workdir, ignore_errors=True)
-    workdir.mkdir(parents=True, exist_ok=True)
-
-    shutil.copy2(ASSETS / "letterhead.typ", workdir / "letterhead.typ")
+    with _attributing("build_dir", config.build_dir, _BUILD_DIR_HINT):
+        if workdir.exists():
+            shutil.rmtree(workdir, ignore_errors=True)
+        workdir.mkdir(parents=True, exist_ok=True)
+        # Our own file, so a failure copying it is about the destination.
+        shutil.copy2(ASSETS / "letterhead.typ", workdir / "letterhead.typ")
 
     # Both of these arrive as the path the user wrote and leave as the name
     # the file landed under here, which is all Typst ever sees of them.
@@ -197,10 +261,11 @@ def _stage(
         config, workdir, background["image"], inputs
     )
 
-    (workdir / "document.json").write_text(
-        json.dumps(resolved, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    with _attributing("build_dir", config.build_dir, _BUILD_DIR_HINT):
+        (workdir / "document.json").write_text(
+            json.dumps(resolved, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
     return workdir
 
 
@@ -290,7 +355,10 @@ def _stage_asset(
         )
 
     name = stem + suffix
-    shutil.copy2(source, workdir / name)
+    # Attributed to the setting, not to the build directory: this copy has the
+    # user's file at one end and is as likely to fail there.
+    with _attributing(setting, source):
+        shutil.copy2(source, workdir / name)
     if inputs is not None:
         inputs.append(source)
     return name
@@ -438,8 +506,11 @@ def _stage_one_image(
     used = {placed.rpartition("/")[2] for placed in taken.values()}
     name = _unique_name(_UNSAFE_RE.sub("-", source.name), used)
     destination = workdir / IMAGE_DIR / name
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
+    # By the name the document wrote, for the same reason as in `_stage_asset`,
+    # and spelled the way its neighbour above spells `no such picture`.
+    with _attributing(written):
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
 
     placed = f"{IMAGE_DIR}/{name}"
     taken[source] = placed

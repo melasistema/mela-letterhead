@@ -7,6 +7,8 @@ missing, so a contributor without the toolchain can still run the rest.
 import json
 import re
 import shutil
+import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -41,6 +43,34 @@ needs_alt_text = pytest.mark.skipif(
         f"pandoc {toolchain.PANDOC_ALT_TEXT} or newer is needed to carry a "
         "picture's description as far as the page"
     ),
+)
+
+
+def _permissions_bite():
+    """Whether taking write permission away actually stops this process.
+
+    Asked rather than assumed, because two ordinary situations answer no.
+    Windows carries no POSIX mode bits — `chmod` there toggles a read-only flag
+    and does not apply to a directory at all — and root is refused nothing
+    anywhere. A test that asserted a refusal would then fail for the platform
+    rather than for the code, and the Windows job runs this suite.
+    """
+    with tempfile.TemporaryDirectory() as temp:
+        locked = Path(temp) / "locked"
+        locked.mkdir()
+        locked.chmod(0o500)
+        try:
+            (locked / "probe").mkdir()
+        except OSError:
+            return True
+        finally:
+            locked.chmod(0o700)
+    return False
+
+
+needs_real_permissions = pytest.mark.skipif(
+    not _permissions_bite(),
+    reason="a directory cannot be made unwritable here (Windows, or running as root)",
 )
 
 
@@ -656,3 +686,149 @@ class TestProfilesEndToEnd:
         )
         config = config_module.load(project / "letterhead.yaml")
         assert builder.build_all(config)[0].pdf.read_bytes().startswith(b"%PDF")
+
+
+class TestTheBuildDirectoryIsNotASource:
+    """Nothing the build writes is something the build reads.
+
+    `builder`'s own module docstring says so; `discover` did not know it. The
+    reachable version needed a recursive `documents.include` and a build
+    directory that had survived — which is either `--keep-build`, or any failed
+    build, since the staging is only cleared on success.
+    """
+
+    def recursive(self, project):
+        path = project / "letterhead.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                '  include: ["*.md"]', '  include: ["**/*.md"]'
+            ),
+            encoding="utf-8",
+        )
+        assert '**/*.md' in path.read_text(encoding="utf-8")
+        return config_module.load(path)
+
+    def leave_intermediates(self, config, slug="example-letter"):
+        """What a failed build, or `--keep-build`, leaves on the disk."""
+        workdir = config.build_dir / slug
+        workdir.mkdir(parents=True)
+        (workdir / "body.prep.md").write_text("= Left over\n", encoding="utf-8")
+        return workdir / "body.prep.md"
+
+    def test_an_intermediate_is_not_discovered(self, project):
+        config = self.recursive(project)
+        left = self.leave_intermediates(config)
+        assert left.is_file()
+        assert [path.name for path in builder.discover_documents(config)] == [
+            "example-letter.md"
+        ]
+
+    def test_it_is_not_watched_either(self, project):
+        # Three commands, one answer: a watch that disagreed would rebuild on
+        # its own staging and never settle.
+        config = self.recursive(project)
+        left = self.leave_intermediates(config)
+        assert left not in cli._watched(config, None, [])
+
+    @needs_toolchain
+    def test_check_and_build_agree_after_a_failure(self, project):
+        # The shape the defect actually took: a document with a mistake in it
+        # fails, leaving its staging behind; the mistake is then fixed, and the
+        # next build reported the *old* error out of the build directory.
+        (project / "broken.md").write_text(
+            "# Broken\n\n![a plate](missing.svg)\n", encoding="utf-8"
+        )
+        config = self.recursive(project)
+        with pytest.raises(BuildError, match="no such picture"):
+            builder.build_all(config)
+        assert (config.build_dir / "broken" / "body.prep.md").is_file()
+
+        (project / "broken.md").write_text("# Broken\n\nNo picture.\n", encoding="utf-8")
+        results = builder.build_all(config)
+        assert sorted(result.pdf.name for result in results) == [
+            "broken.pdf",
+            "example-letter.pdf",
+        ]
+
+    @needs_toolchain
+    def test_keep_build_can_be_run_twice(self, project):
+        config = self.recursive(project)
+        builder.build_all(config, keep_build=True)
+        again = builder.build_all(config, keep_build=True)
+        assert [result.pdf.name for result in again] == ["example-letter.pdf"]
+
+
+@needs_real_permissions
+class TestAPlaceThatCannotBeWrittenNamesItsSetting:
+    """Every other failure here arrives as a message; these used to arrive as a
+    `PermissionError` several frames up a traceback, naming a directory the
+    user never typed."""
+
+    @pytest.fixture
+    def locked(self, tmp_path):
+        directory = tmp_path / "locked"
+        directory.mkdir()
+        directory.chmod(0o500)
+        yield directory
+        directory.chmod(0o700)
+
+    def settings(self, project, **changes):
+        path = project / "letterhead.yaml"
+        text = path.read_text(encoding="utf-8")
+        for old, new in changes.items():
+            assert old in text, old
+            text = text.replace(old, new)
+        path.write_text(text, encoding="utf-8")
+        return config_module.load(path)
+
+    def test_a_build_directory_that_cannot_be_made(self, project, locked):
+        config = self.settings(
+            project, **{"build_dir: .letterhead-build": f"build_dir: {locked}/build"}
+        )
+        with pytest.raises(BuildError) as caught:
+            builder.build_all(config)
+        assert caught.value.message.startswith("build_dir:")
+        assert "Permission denied" in caught.value.message
+        assert "'build_dir'" in caught.value.hint
+
+    @needs_toolchain
+    def test_an_output_directory_that_cannot_be_made(self, project, locked):
+        config = self.settings(project, **{"  output: .": f"  output: {locked}/out"})
+        with pytest.raises(BuildError) as caught:
+            builder.build_all(config)
+        assert caught.value.message.startswith("documents.output:")
+        assert "'documents.output'" in caught.value.hint
+
+    def test_the_command_reports_it_rather_than_raising(self, project, locked, capsys):
+        self.settings(
+            project, **{"build_dir: .letterhead-build": f"build_dir: {locked}/build"}
+        )
+        assert cli.main(["build", "-c", str(project / "letterhead.yaml")]) == 1
+        assert "build_dir:" in capsys.readouterr().err
+
+    def test_a_logo_that_cannot_be_read_names_the_logo(self, project):
+        # Not the build directory. A copy has two ends, and the setting is the
+        # name that is right whichever end of it failed.
+        logo = project / "assets" / "logo.svg"
+        logo.chmod(0o000)
+        try:
+            config = config_module.load(project / "letterhead.yaml")
+            with pytest.raises(BuildError, match="^brand.logo:"):
+                builder.build_all(config)
+        finally:
+            logo.chmod(0o644)
+
+    @needs_toolchain
+    def test_a_picture_that_cannot_be_read_names_the_picture(self, project):
+        plate = project / "assets" / "plate-condition.svg"
+        plate.chmod(0o000)
+        try:
+            config = config_module.load(project / "letterhead.yaml")
+            with pytest.raises(BuildError) as caught:
+                builder.build_all(config)
+            # Spelled as the document wrote it, like `no such picture` beside it,
+            # and without the absolute path repeating the same name.
+            assert caught.value.message.startswith("assets/plate-condition.svg: ")
+            assert str(plate) not in caught.value.message
+        finally:
+            plate.chmod(0o644)

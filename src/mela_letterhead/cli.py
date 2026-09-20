@@ -13,7 +13,7 @@ from pathlib import Path
 from . import __version__, builder, i18n, toolchain
 from . import config as config_module
 from .config import Config
-from .document import Document, discover
+from .document import Document
 from .errors import LetterheadError
 
 SCAFFOLD = Path(__file__).parent / "assets" / "scaffold"
@@ -379,10 +379,13 @@ def _watched(
     Three groups. The letterhead — the configuration, its locale packs, and the
     two pictures the configuration names, resolved the way a build resolves
     them because either may be written once per language. The documents —
-    whichever were named, or whatever `discover` finds now, which is re-asked
-    every pass so that a newly written document is picked up: it arrives in the
-    next signature as a path that was not in the last one, and `_changed`
-    compares the two key sets rather than only the values they share. Not the
+    whichever were named, or whatever `builder.discover_documents` finds now,
+    which is re-asked every pass so that a newly written document is picked up:
+    it arrives in the next signature as a path that was not in the last one, and
+    `_changed` compares the two key sets rather than only the values they share.
+    Asked through the builder rather than of `discover` directly, so that a
+    watch watches exactly what a build would read, and nothing the build itself
+    wrote. Not the
     directory's own modification time, which POSIX moves when an entry is added
     and Windows does not — the source directory is watched because creating it
     is how a missing one gets fixed. And the pictures, which only a build that
@@ -399,15 +402,8 @@ def _watched(
         paths.extend(Path(source).resolve() for source in sources)
     else:
         paths.append(config.source_dir)
-        documents = config.data["documents"]
         try:
-            paths.extend(
-                discover(
-                    config.source_dir,
-                    list(documents["include"]),
-                    list(documents["exclude"]),
-                )
-            )
+            paths.extend(builder.discover_documents(config))
         except LetterheadError:
             # Reported by the build; the directory is still worth watching,
             # because creating it is how the user fixes this.
@@ -613,11 +609,7 @@ def command_check(args: argparse.Namespace) -> int:
     print(_bold("Documents"))
     documents = config.data["documents"]
     try:
-        paths = discover(
-            config.source_dir,
-            list(documents["include"]),
-            list(documents["exclude"]),
-        )
+        paths = builder.discover_documents(config)
     except LetterheadError as error:
         problems += 1
         paths = []

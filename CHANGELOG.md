@@ -6,6 +6,33 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The build directory is no longer searched for documents. A build stages each
+  document's rewritten Markdown as `body.prep.md` and clears it again only when
+  the build *succeeds*, so a failure — or `--keep-build` — leaves one on the
+  disk; a recursive `documents.include`, `**/*.md`, then found it and built the
+  rewritten copy as though somebody had written it. The pictures in that copy
+  are already repointed at the staging directory, so the symptom was the worst
+  kind: fix the mistake in your document, build again, and the *same* error
+  comes back about a file you have just stopped referring to, out of a
+  directory you have never written in — while `check` reports the project
+  clean. It compounded, too, one directory per run, and `.letterhead-build`
+  sorting first meant nothing else got built at all. `build`, `check` and
+  `--watch` now ask one function what the documents are, so the three cannot
+  drift apart; and the skipping is done there rather than by a pattern in
+  `documents.exclude`, because `build_dir` is a setting and a pattern could not
+  follow somebody who moved it.
+- A directory that cannot be written now names the setting that chose it.
+  Staging was the one part of the pipeline whose failures did not arrive as
+  failures: a `build_dir` on a read-only mount, or one belonging to somebody
+  else, came out as a `PermissionError` from inside `shutil`, several frames up
+  a traceback, naming a path the user had never typed. `build_dir` and
+  `documents.output` are reported by name with what to do about them, and a
+  logo, a background or a picture that cannot be read is reported by *its* name
+  — a copy has two ends, and the name of the file is the one attribution that
+  is right whichever end failed.
+
 ## [0.5.0] — 2026-09-20
 
 ### Added

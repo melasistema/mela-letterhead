@@ -283,14 +283,35 @@ def discover(
     source: Path,
     include: list[str],
     exclude: list[str],
+    skip: Path | None = None,
 ) -> list[Path]:
     """Find the Markdown sources under ``source`` matching ``include``.
 
     Patterns are matched against the path relative to ``source``, so a pattern
     may address a subdirectory (``offers/*.md``) as well as a bare name.
+
+    ``skip`` is a directory holding no documents whatever the patterns say — in
+    practice the build directory. A build stages each document's rewritten
+    Markdown there as ``body.prep.md`` and removes it again only when the build
+    *succeeds*, so a failure, or ``--keep-build``, leaves one behind. A
+    recursive pattern such as ``**/*.md`` would then find it and build the
+    rewritten copy as though it were a source: the pictures in it are already
+    repointed at the staging directory, so the run fails by reporting the
+    previous error against a file the user has since fixed, out of a directory
+    they never wrote in. Skipping is done here rather than by a pattern in
+    ``documents.exclude`` because ``build_dir`` is a setting, and a pattern
+    could not follow a user who moved it.
     """
     if not source.is_dir():
         raise DocumentError(f"{source}: no such directory")
+
+    root = source.resolve()
+    pruned = skip.resolve() if skip is not None else None
+    # A `skip` that contains the sources themselves is not a build directory
+    # but a misconfiguration, and honouring it would discover nothing at all.
+    # The patterns win, and the build reports whatever they find.
+    if pruned is not None and root.is_relative_to(pruned):
+        pruned = None
 
     found: dict[Path, None] = {}
     for pattern in include:
@@ -300,7 +321,9 @@ def discover(
 
     kept = []
     for path in found:
-        relative = path.relative_to(source.resolve())
+        if pruned is not None and path.is_relative_to(pruned):
+            continue
+        relative = path.relative_to(root)
         if any(_matches(relative, pattern) for pattern in exclude):
             continue
         kept.append(path)

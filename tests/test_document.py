@@ -159,3 +159,48 @@ class TestDiscover:
     def test_missing_directory(self, tmp_path):
         with pytest.raises(DocumentError, match="no such directory"):
             discover(tmp_path / "absent", ["*.md"], [])
+
+
+class TestDiscoverSkipsTheBuildDirectory:
+    """What a build leaves behind is not something to build.
+
+    A build stages each document's rewritten Markdown as `body.prep.md` and
+    removes it only on success, so a failed build — or `--keep-build` — leaves
+    one where a recursive pattern will find it.
+    """
+
+    def test_a_recursive_pattern_does_not_find_intermediates(self, tmp_path):
+        write(tmp_path, "letter.md", "Text\n")
+        (tmp_path / ".letterhead-build" / "letter").mkdir(parents=True)
+        write(tmp_path, ".letterhead-build/letter/body.prep.md", "Text\n")
+
+        found = discover(tmp_path, ["**/*.md"], [], skip=tmp_path / ".letterhead-build")
+        assert [path.name for path in found] == ["letter.md"]
+
+    def test_without_the_skip_it_finds_them_all(self, tmp_path):
+        """The defect this closes, kept as the reason the argument exists."""
+        write(tmp_path, "letter.md", "Text\n")
+        (tmp_path / ".letterhead-build" / "letter").mkdir(parents=True)
+        write(tmp_path, ".letterhead-build/letter/body.prep.md", "Text\n")
+
+        found = discover(tmp_path, ["**/*.md"], [])
+        assert [path.name for path in found] == ["body.prep.md", "letter.md"]
+
+    def test_a_build_directory_that_is_not_there_yet_is_no_trouble(self, tmp_path):
+        write(tmp_path, "letter.md", "Text\n")
+        found = discover(tmp_path, ["*.md"], [], skip=tmp_path / "never-built")
+        assert [path.name for path in found] == ["letter.md"]
+
+    def test_a_build_directory_outside_the_sources_skips_nothing(self, tmp_path):
+        source = tmp_path / "project"
+        source.mkdir()
+        write(source, "letter.md", "Text\n")
+        found = discover(source, ["*.md"], [], skip=tmp_path / "elsewhere")
+        assert [path.name for path in found] == ["letter.md"]
+
+    def test_a_build_directory_holding_the_sources_is_ignored(self, tmp_path):
+        """`build_dir: .` is a misconfiguration, not an instruction to find
+        nothing. The patterns win, and the build reports what they find."""
+        write(tmp_path, "letter.md", "Text\n")
+        found = discover(tmp_path, ["*.md"], [], skip=tmp_path)
+        assert [path.name for path in found] == ["letter.md"]
