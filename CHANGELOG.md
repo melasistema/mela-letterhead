@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-09-20
+
 ### Fixed
 
 - An unknown `page.size` now says *where* a custom size is written. The hint
@@ -404,7 +406,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   resolved configuration, in the document's own language, as the documentation
   has always said they were.
 
-[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/melasistema/mela-letterhead/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/melasistema/mela-letterhead/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/melasistema/mela-letterhead/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/melasistema/mela-letterhead/compare/v0.3.3...v0.4.0
