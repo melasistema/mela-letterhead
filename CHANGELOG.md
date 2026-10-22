@@ -6,6 +6,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `running.logo`, a logo of its own for the running header. A logo is one
+  picture, and the running header drew the same one on the bare paper of every
+  page after the first — so a logo drawn pale for a dark header band vanished
+  there, with no way out but losing it from page two. Left out, it is
+  `brand.logo` as before. `check` reports it and `--watch` rebuilds on it.
+
 ## [0.5.2] — 2026-09-20
 
 ### Fixed

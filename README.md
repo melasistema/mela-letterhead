@@ -597,6 +597,19 @@ follows the ink of whatever it is printed on: the header band on page one, the
 bare paper in the running header. Set it, and that one colour is used in both
 places — which is how a white wordmark disappears on page two.
 
+#### A logo for a dark band
+
+A logo has no ink to follow: it is one picture, and the running header draws
+the same one on bare paper. A logo drawn pale for a dark header band would
+vanish there, so give the running header the usual one:
+
+```yaml
+brand:
+  logo: assets/logo-light.svg   # on the dark band of page one
+running:
+  logo: assets/logo.svg         # on the paper of the pages after it
+```
+
 ### Colour and type
 
 ```yaml
@@ -1103,7 +1116,8 @@ itself with `header.fill` and `footer.fill`, and leave the palette pale.
 **The wordmark is invisible on page two.** It was given a `color` of its own,
 and that one colour is used on both grounds — the header band and the bare paper
 of the running header. Delete `brand.wordmark.color` and it follows each of them
-instead.
+instead. A logo drawn pale for the band needs `running.logo` instead — see
+[A logo for a dark band](#a-logo-for-a-dark-band).
 
 **The background sheet is refused.** If the message says Typst cannot place a
 `.pdf`, that is the usual one: export the artwork as PNG or JPEG instead. If it

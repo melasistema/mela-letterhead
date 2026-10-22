@@ -56,13 +56,14 @@
 // `ink` is the colour of the wordmark here, which is not the same in both
 // places: the tool resolves one colour for the header band and one for the
 // bare paper of the running header, so that a pale wordmark on a dark band
-// does not disappear on page two.
+// does not disappear on page two. `logo` is the picture, if there is one, and
+// for the same reason it may differ between the two: a logo drawn pale for a
+// dark band gives the running header a version of its own.
 
-#let brand-mark(cfg, width, ink, tagline: false) = {
+#let brand-mark(cfg, width, ink, tagline: false, logo: none) = {
   let brand = cfg.brand
   let wm = brand.wordmark
   let how = alignment-of(wm.align)
-  let logo = brand.at("logo", default: none)
 
   let mark = if logo != none {
     image(logo, width: width)
@@ -225,6 +226,7 @@
       len(cfg.header.logo.width),
       cfg.brand.wordmark.color,
       tagline: true,
+      logo: cfg.brand.logo,
     ),
   )
 
@@ -257,7 +259,7 @@
     top + left,
     dx: side,
     dy: len(r.logo_y),
-    brand-mark(cfg, len(r.logo_width), cfg.brand.wordmark.running_color),
+    brand-mark(cfg, len(r.logo_width), cfg.brand.wordmark.running_color, logo: r.logo),
   )
 
   place(top + left, dx: side, dy: len(r.text_y), box(

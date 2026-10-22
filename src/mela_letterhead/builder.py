@@ -251,11 +251,18 @@ def _stage(
         # Our own file, so a failure copying it is about the destination.
         shutil.copy2(ASSETS / "letterhead.typ", workdir / "letterhead.typ")
 
-    # Both of these arrive as the path the user wrote and leave as the name
-    # the file landed under here, which is all Typst ever sees of them.
-    resolved["brand"]["logo"] = _stage_logo(
-        config, workdir, resolved["brand"]["logo"], inputs
-    )
+    # These arrive as the path the user wrote and leave as the name the file
+    # landed under here, which is all Typst ever sees of them. The running
+    # header's logo is the brand's unless it was given one of its own.
+    written = resolved["brand"]["logo"]
+    resolved["brand"]["logo"] = _stage_logo(config, workdir, written, inputs)
+    running = resolved["running"]
+    if running["logo"] == written:
+        running["logo"] = resolved["brand"]["logo"]
+    else:
+        running["logo"] = _stage_asset(
+            config, workdir, running["logo"], "running.logo", "running-logo", inputs=inputs
+        )
     background = resolved["page"]["background"]
     background["image"] = _stage_background(
         config, workdir, background["image"], inputs

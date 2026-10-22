@@ -211,6 +211,9 @@ header:
 running:
   show: true
   logo_width: 26mm
+  # A logo drawn pale for a dark header band would vanish on the bare paper
+  # here; give this header the usual one. Left out, it is brand.logo.
+  # logo: assets/logo.svg
   # Placeholders: {title} {brand} {page} {pages}
   # Left out, this comes from the locale pack — English ships with the tool,
   # and you add a language by dropping locales/<code>.yaml beside this file.

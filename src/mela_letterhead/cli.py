@@ -521,6 +521,14 @@ def command_check(args: argparse.Namespace) -> int:
     else:
         print(f"     logo           {_dim('none — the brand name is set as a wordmark')}")
 
+    running_logo = _configured_running_logo(config)
+    if running_logo is not None:
+        if running_logo.is_file():
+            print(f"     running logo   {_relative(running_logo)}")
+        else:
+            problems += 1
+            print(f"  {_cross()}  running logo not found: {_relative(running_logo)}")
+
     background = _configured_background(config)
     if background is not None:
         if background.is_file():
@@ -670,10 +678,10 @@ def _load_config(args: argparse.Namespace) -> Config:
 def _configured_picture(config: Config, written: object) -> Path | None:
     """The file a picture setting names, in the project's own language.
 
-    The logo and the page background are the two pictures the configuration
-    owns, and either may be written as a language map — a brand with a mark per
-    market. So neither can be read straight out of `config.data`, where such a
-    map stringifies into a path that does not exist.
+    The logos and the page background are the pictures the configuration
+    owns, and any of them may be written as a language map — a brand with a
+    mark per market. So none can be read straight out of `config.data`, where
+    such a map stringifies into a path that does not exist.
     """
     localised = i18n.localise(written, i18n.fallback_chain(config.default_language))
     return config.resolve_path(str(localised)) if localised else None
@@ -683,13 +691,21 @@ def _configured_logo(config: Config) -> Path | None:
     return _configured_picture(config, config.data["brand"].get("logo"))
 
 
+def _configured_running_logo(config: Config) -> Path | None:
+    return _configured_picture(config, config.data["running"].get("logo"))
+
+
 def _configured_background(config: Config) -> Path | None:
     return _configured_picture(config, config.data["page"]["background"].get("image"))
 
 
 def _configured_pictures(config: Config) -> list[Path]:
-    """Both of them, leaving out whichever is not set."""
-    named = (_configured_logo(config), _configured_background(config))
+    """All of them, leaving out whichever is not set."""
+    named = (
+        _configured_logo(config),
+        _configured_running_logo(config),
+        _configured_background(config),
+    )
     return [path for path in named if path is not None]
 
 

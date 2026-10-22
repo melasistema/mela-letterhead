@@ -768,6 +768,10 @@
         "show": {
           "type": "boolean"
         },
+        "logo": {
+          "$ref": "#/$defs/text",
+          "description": "A logo of its own for the running header, relative to the configuration file. Left out, it is `brand.logo`. For a logo drawn pale for a dark header band, which would vanish on the bare paper of the pages after the first."
+        },
         "logo_width": {
           "$ref": "#/$defs/length"
         },

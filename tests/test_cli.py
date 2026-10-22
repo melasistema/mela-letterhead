@@ -303,6 +303,12 @@ class TestCheckFindsTheFilesTheLetterheadNames:
         assert "logo not found" in out
         assert "mark.svg" in out
 
+    def test_a_running_logo_that_is_not_there_is_a_problem(self, tmp_path, capsys):
+        status, out = check(tmp_path, capsys, config=SOUND + "running:\n  logo: plain.svg\n")
+        assert status == 1
+        assert "running logo not found" in out
+        assert "plain.svg" in out
+
     def test_a_background_that_is_not_there_is_a_problem(self, tmp_path, capsys):
         config = SOUND + "page:\n  background:\n    image: sheet.png\n"
         status, out = check(tmp_path, capsys, config=config)

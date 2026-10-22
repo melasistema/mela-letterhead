@@ -277,11 +277,11 @@ class TestBandColours:
 class TestWordmark:
     """The brand name set in type, for a letterhead with no logo file."""
 
+    def _resolve(self, tmp_path, text=MINIMAL, language="en"):
+        return config_module.resolve(make_config(tmp_path, text), make_document(tmp_path), language)
+
     def _brand(self, tmp_path, text=MINIMAL, language="en"):
-        resolved = config_module.resolve(
-            make_config(tmp_path, text), make_document(tmp_path), language
-        )
-        return resolved["brand"]
+        return self._resolve(tmp_path, text, language)["brand"]
 
     def test_the_parts_are_shares_of_the_mark(self, tmp_path):
         # So that the smaller mark in the running header is the same design.
@@ -315,6 +315,21 @@ class TestWordmark:
         brand = self._brand(tmp_path, written)
         assert brand["wordmark"]["color"] == "#c00"
         assert brand["wordmark"]["running_color"] == "#c00"
+
+    def test_the_running_header_draws_the_brand_logo_by_default(self, tmp_path):
+        written = MINIMAL.replace("brand:\n", "brand:\n  logo: logo.svg\n")
+        resolved = self._resolve(tmp_path, written)
+        assert resolved["running"]["logo"] == "logo.svg"
+
+    def test_the_running_header_may_have_a_logo_of_its_own(self, tmp_path):
+        # A logo drawn pale for a dark band would vanish on the bare paper.
+        written = MINIMAL.replace("brand:\n", "brand:\n  logo: light.svg\n")
+        resolved = self._resolve(tmp_path, written + "running:\n  logo: logo.svg\n")
+        assert resolved["brand"]["logo"] == "light.svg"
+        assert resolved["running"]["logo"] == "logo.svg"
+
+    def test_a_wordmark_leaves_the_running_header_without_a_picture(self, tmp_path):
+        assert self._resolve(tmp_path)["running"]["logo"] is None
 
     def test_a_weight_outside_the_scale_is_refused(self, tmp_path):
         written = MINIMAL.replace("brand:\n", "brand:\n  wordmark:\n    weight: 1200\n")

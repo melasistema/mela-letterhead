@@ -187,6 +187,35 @@ class TestBuild:
         staged = (config.build_dir / "offerta" / "logo.svg").read_bytes()
         assert staged == (project / "assets" / "logo-it.svg").read_bytes()
 
+    def test_the_running_header_may_draw_a_logo_of_its_own(self, project):
+        # A pale logo for a dark band on page one, the usual one after it.
+        shutil.copy2(SCAFFOLD / "plate-condition.svg", project / "assets" / "logo-light.svg")
+        text = (project / "letterhead.yaml").read_text(encoding="utf-8")
+        text = text.replace("  logo: assets/logo.svg\n", "  logo: assets/logo-light.svg\n")
+        text = text.replace(
+            "  show: true\n  logo_width", "  show: true\n  logo: assets/logo.svg\n  logo_width"
+        )
+        (project / "letterhead.yaml").write_text(text, encoding="utf-8")
+
+        config = config_module.load(project / "letterhead.yaml")
+        results = builder.build_all(config, keep_build=True)
+        assert results[0].pdf.read_bytes().startswith(b"%PDF")
+        workdir = config.build_dir / results[0].pdf.stem
+        resolved = json.loads((workdir / "document.json").read_text(encoding="utf-8"))
+        assert resolved["brand"]["logo"] == "logo.svg"
+        assert resolved["running"]["logo"] == "running-logo.svg"
+        assets = project / "assets"
+        assert (workdir / "logo.svg").read_bytes() == (assets / "logo-light.svg").read_bytes()
+        assert (workdir / "running-logo.svg").read_bytes() == (assets / "logo.svg").read_bytes()
+
+    def test_the_running_header_shares_the_brand_logo_unless_given_one(self, project):
+        config = config_module.load(project / "letterhead.yaml")
+        results = builder.build_all(config, keep_build=True)
+        workdir = config.build_dir / results[0].pdf.stem
+        resolved = json.loads((workdir / "document.json").read_text(encoding="utf-8"))
+        assert resolved["running"]["logo"] == resolved["brand"]["logo"] == "logo.svg"
+        assert not (workdir / "running-logo.svg").exists()
+
     def test_a_wordmark_a_coloured_band_and_a_border_compile_together(self, project):
         # The three ways a letterhead is made to look like somebody's own
         # without an image anywhere in it.

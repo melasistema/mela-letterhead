@@ -247,6 +247,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # The reduced header of every page after the first.
     "running": {
         "show": True,
+        # A logo of its own for the running header, relative to the
+        # configuration file. Left out, it is `brand.logo`. For a logo drawn
+        # pale for a dark header band, which would vanish on the bare paper of
+        # the pages after the first.
+        "logo": None,
         "logo_width": "26mm",
         "logo_y": "9.2mm",
         "text_y": "11.1mm",
@@ -1067,6 +1072,8 @@ def _resolve_running(
 
     return {
         "show": bool(running["show"]),
+        # The path as written, like `brand.logo`, and staged the same way.
+        "logo": _as_text(running.get("logo")) or _as_text(brand.get("logo")) or None,
         "logo_width": units.to_points(running["logo_width"], "running.logo_width"),
         "logo_y": units.to_points(running["logo_y"], "running.logo_y"),
         "text_y": units.to_points(running["text_y"], "running.text_y"),
