@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Paragraphs are set a blank line apart: `typography.paragraph_spacing` now
+  defaults to `1.8` instead of `0.95`. At 0.95 a new paragraph stood barely
+  1.5pt further down than the next line of the same one, so a letter of short
+  paragraphs printed as one block. A letterhead that sets its own spacing is
+  unchanged; set `0.95` to keep the old look.
+- The letterhead `init` writes names the settings added since it was last
+  revised, commented out where the default stands: a pale logo for a dark
+  band beside `running.logo`, `footer.height: auto` with its `padding`,
+  `footer.fit`, the `line` layout's `separator`, the header fields' place
+  and the bands' rules, and the type sizes of tables, quotations and code.
+
 ## [0.8.0] — 2026-10-23
 
 ### Added

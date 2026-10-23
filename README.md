@@ -626,6 +626,7 @@ fonts:
   serif: ["Libertinus Serif", "New Computer Modern"]
   sans: ["Helvetica Neue", "Inter", "Arial", "Liberation Sans", "DejaVu Sans"]
   mono: ["DejaVu Sans Mono", "Menlo", "Consolas"]
+  display: ["Libertinus Serif"]  # the footer band and the wordmark; the serif stack when left out
 ```
 
 Change `accent` first: it carries the headings, the list markers and the links,
@@ -639,6 +640,24 @@ stack is installed, Typst substitutes silently and your page changes without
 saying so** — `mela-letterhead check` tells you which font you are actually
 getting. To ship fonts with the project, put them in a directory and point
 `fonts.paths` at it.
+
+```yaml
+typography:
+  size: 11pt
+  leading: 0.82           # between the lines of a paragraph, × the font size
+  paragraph_spacing: 1.8  # between paragraphs: a blank line
+  justify: true
+  hyphenate: true
+  headings: { h1: 15pt, h2: 12.5pt, h3: 10.6pt, h4: 10pt }
+  table_size: 9.6pt
+  quote_size: 9.9pt
+  code_size: 0.82         # inline code, × the text around it
+```
+
+Leading and spacing are multiples of the font size, so they follow it. The
+paragraphs stand a blank line apart, as in a typed letter; bring
+`paragraph_spacing` down towards `leading` and they close up until a new one
+can no longer be told from the next line of the last.
 
 #### Giving a band real colour
 
@@ -742,6 +761,12 @@ where it goes — `Date:` in English, `Date :` in French.
 
 `when_empty` decides what a field with no value becomes: a `rule` to fill in by
 hand, a `blank` label, or nothing at all (`hide`).
+
+The fields start `y` from the top of the page (9.7mm), `align`ed `right`, at
+`size` 11.5pt. Give them a `y` past the band's `height` and they print on the
+paper under it, a quieter header with the details below; raise `header.gap`,
+the space between the band and the first line of text, to keep the text clear
+of them. `header.rule` is the line along the band's lower edge — `0pt` for none.
 
 ### The footer
 
@@ -964,11 +989,13 @@ paper.
 size the columns. Pandoc derives a Typst column's width from how many dashes you
 typed, which would otherwise give a column holding the word "Hours" the same
 width as one holding a sentence. Widths are recomputed from the content, your
-`:` alignment markers are kept, and the header row is emboldened for you.
+`:` alignment markers are kept, and the header row is emboldened for you
+(`markdown.bold_table_header: false` leaves it as written).
 
 **Horizontal rules.** `---` between sections is dropped in print: the hierarchy
 is already carried by the rules above the headings, and a full-width line on top
-of that reads as heavy. Keep them in the source if they help you write.
+of that reads as heavy. Keep them in the source if they help you write, or set
+`markdown.drop_horizontal_rules: false` to print them.
 
 **Inline code** becomes a grey field — the convention for a value left to be
 filled in later:

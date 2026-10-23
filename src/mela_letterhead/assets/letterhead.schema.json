@@ -583,7 +583,8 @@
           "description": "Leading and spacing are multiples of the font size, so they follow whatever text they are applied to."
         },
         "paragraph_spacing": {
-          "$ref": "#/$defs/length"
+          "$ref": "#/$defs/length",
+          "description": "A blank line between paragraphs: the leading plus the line itself."
         },
         "justify": {
           "type": "boolean"

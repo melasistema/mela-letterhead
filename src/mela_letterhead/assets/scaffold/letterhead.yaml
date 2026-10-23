@@ -33,6 +33,10 @@ brand:
   # Delete this line and the name below is set in type instead, at the size the
   # logo would have had — which is a complete letterhead, not a fallback, and
   # is the right one for anyone whose name is their brand.
+  #
+  # For a dark header band, point this at a pale version of the logo and
+  # `running.logo` below at the usual one: the pages after the first print
+  # their logo on bare paper, where a pale one would vanish.
   logo: assets/logo.svg
 
   # A line under the mark on page one, under a logo just as under a name.
@@ -129,7 +133,7 @@ fonts:
 typography:
   size: 11pt
   leading: 0.82 # multiples of the font size, so they scale with the text
-  paragraph_spacing: 0.95
+  paragraph_spacing: 1.8 # a blank line between paragraphs
   justify: true
   hyphenate: true
   headings:
@@ -137,6 +141,9 @@ typography:
     h2: 12.5pt
     h3: 10.6pt
     h4: 10pt
+  # table_size: 9.6pt
+  # quote_size: 9.9pt
+  # code_size: 0.82 # inline code, a share of the text around it
 
 # ── Pictures in the body ────────────────────────────────────────────────────
 # Write one as `![caption](assets/plate.svg)`. The file is read relative to the
@@ -167,6 +174,8 @@ images:
 header:
   show: true
   height: 43mm
+  # gap: 9.1mm # between the band and the first line of text
+  # rule: 3pt # the line along the band's lower edge; 0pt for none
 
   # The band's own colours. Each falls back to the palette, so the band can be
   # recoloured without touching anything else on the page. Set `fill` dark and
@@ -183,6 +192,10 @@ header:
 
   fields:
     align: right
+    # Where the fields start, from the top of the page. Larger than the band's
+    # height, they print on the paper below it; raise `gap` to make room.
+    # y: 9.7mm
+    # size: 11.5pt
 
     # What happens to a field whose document leaves it empty:
     #   rule  — print a line to fill in by hand (good for a reference number
@@ -235,8 +248,21 @@ footer:
   # `columns` side by side, or `line`: each column a centred line of its own,
   # which is what a slim footer on every page wants.
   layout: columns
+  # separator: " · " # between the title and the rows of a `line`
+
+  # Or `auto`: as tall as what the band holds, plus `padding` above and below,
+  # so a footer that gains a row grows and one that loses a row shrinks.
   height: 50.2mm
+  # padding: 3mm
+  # rule: 3pt # the line along the band's upper edge; 0pt for none
   align: center
+
+  # The type's size, and a smallest one to shrink it towards until no line
+  # has to break: no row wraps in its column, no column runs to a second
+  # line. The titles, leading and title gap shrink with it.
+  # size: 11pt
+  # title_size: 15pt
+  # fit: 7pt
   # Air between the rows of a column. The band centres whatever it holds, so
   # raising this eats into the space above and below rather than moving the
   # rows down; raise `height` too if a column of yours runs long.

@@ -172,7 +172,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # Leading and spacing are multiples of the font size, so they follow
         # whatever text they are applied to.
         "leading": 0.82,
-        "paragraph_spacing": 0.95,
+        # A blank line between paragraphs: the leading plus the line itself.
+        "paragraph_spacing": 1.8,
         "justify": True,
         "hyphenate": True,
         "headings": {
