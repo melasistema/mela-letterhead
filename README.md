@@ -787,6 +787,31 @@ end. `gutter` and `title_gap` have nothing to space in this layout and are
 ignored. The band keeps the `height` you give it, so a lower band is set by
 `height` and the type by `size`.
 
+Two settings let the footer size itself instead, in either layout:
+
+```yaml
+footer:
+  height: auto           # as tall as what it holds
+  padding: 3mm           # above and below it, when the height is auto
+  size: 9pt
+  fit: 6.5pt             # shrink towards this until no line has to break
+```
+
+`height: auto` measures the band's content once the type is set and makes the
+band that tall plus `padding` above and below, so a footer that gains a row
+grows and one that loses a row shrinks. The room kept clear for it follows,
+in the margin of every page or at the end of the body on the last, exactly as
+for a height you write down.
+
+`fit` is the smallest size the type may come down to. Starting at `size`, the
+type shrinks a quarter of a point at a time until every line sets without a
+break — in `line`, each column on one line; in `columns`, no row wrapping in
+its column — and the title, the leading and the title gap shrink with it.
+It stops at `fit` whether or not everything fits by then, and from there the
+lines break as they always would. Leave it out and the size is the size.
+Together the two give a footer that keeps to one line per column and is never
+taller than it needs to be.
+
 ---
 
 ## A PDF you can file

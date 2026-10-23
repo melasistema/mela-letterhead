@@ -643,6 +643,39 @@ class TestValidation:
         row = footer["columns"][0]["rows"][2]
         assert row["link"] == "mailto:hello@acme.example"
 
+    def test_a_footer_of_auto_height_is_left_to_typst_to_reserve(self, tmp_path):
+        # Only Typst can measure it, so nothing here may reserve for it: the
+        # margin stays the one written, and `settle-footer` does the sum.
+        config = make_config(
+            tmp_path, MINIMAL.replace("footer:\n", "footer:\n  pages: all\n  height: Auto\n")
+        )
+        resolved = config_module.resolve(config, make_document(tmp_path), "en")
+        assert resolved["footer"]["height"] is None
+        assert resolved["footer"]["padding"] == pytest.approx(3 * 72 / 25.4)
+        default = config_module.DEFAULT_CONFIG["page"]["margin"]["bottom"]
+        assert resolved["page"]["margin"]["bottom"] == pytest.approx(
+            float(default.removesuffix("mm")) * 72 / 25.4
+        )
+        assert resolved["page"]["footer_reserve"] == 0
+
+    def test_a_footer_fits_only_when_asked(self, tmp_path):
+        footer = config_module.resolve(
+            make_config(tmp_path), make_document(tmp_path), "en"
+        )["footer"]
+        assert footer["fit"] is None
+        config = make_config(
+            tmp_path, MINIMAL.replace("footer:\n", "footer:\n  fit: 6.5pt\n")
+        )
+        footer = config_module.resolve(config, make_document(tmp_path), "en")["footer"]
+        assert footer["fit"] == 6.5
+
+    def test_a_footer_cannot_fit_to_a_size_above_its_own(self, tmp_path):
+        config = make_config(
+            tmp_path, MINIMAL.replace("footer:\n", "footer:\n  size: 8pt\n  fit: 9pt\n")
+        )
+        with pytest.raises(ConfigError, match="footer.fit"):
+            config_module.resolve(config, make_document(tmp_path), "en")
+
     def test_an_alignment_must_be_one_of_three(self, tmp_path):
         config = make_config(tmp_path, MINIMAL + "running:\n  align: middle\n")
         with pytest.raises(ConfigError, match="running.align"):

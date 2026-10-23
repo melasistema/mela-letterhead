@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `footer.height: auto`, which makes the footer band as tall as what it holds
+  plus `footer.padding` (3mm) above and below, and reserves the room for it in
+  the margin or at the end of the body as for a written height. Until now the
+  height had to be guessed, and a guess either clipped a footer that gained a
+  row or left a band of empty colour under one that lost it.
+- `footer.fit`, a smallest size for the footer's type: from `footer.size` the
+  type comes down a quarter point at a time until no line has to break — each
+  column on one line in the `line` layout, no row wrapping in its column in
+  `columns` — and no lower than `fit`. The title, leading and title gap shrink
+  in proportion.
+
+  Both are measured by Typst, the one place that knows how wide and tall the
+  type sets, once and before the page is set; everything after reads plain
+  numbers as before.
+
 ## [0.7.0] — 2026-10-23
 
 ### Added

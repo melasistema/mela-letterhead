@@ -25,6 +25,10 @@
 //  fixes the bottom margin for the whole document, so the room it needs is
 //  reserved by a block at the end of the body instead — `page.footer_reserve`,
 //  computed by the tool. A footer on every page reserves margin as usual.
+//  A footer of `auto` height, or one asked to fit, is the one thing measured
+//  here rather than resolved by the tool, because only Typst knows how wide
+//  and tall its type sets: `settle-footer` turns it into plain numbers once,
+//  before the page is set, and everything after it reads them as usual.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── JSON to Typst ─────────────────────────────────────────────────────────
@@ -315,20 +319,27 @@
   }
 }
 
-// The type every footer layout is set in.
+// The type every footer layout is set in, and what it is measured in.
+#let footer-type(cfg, body) = {
+  let f = cfg.footer
+  set text(font: cfg.fonts.display, size: len(f.size), fill: rgb(f.ink))
+  body
+}
+
 #let footer-text(cfg, body) = {
   let f = cfg.footer
   set par(leading: len(f.leading), spacing: len(f.leading), justify: false)
-  set text(font: cfg.fonts.display, size: len(f.size), fill: rgb(f.ink))
-  align(alignment-of(f.align), body)
+  footer-type(cfg, align(alignment-of(f.align), body))
 }
+
+#let footer-title(title, cfg) = text(weight: 700, size: len(cfg.footer.title_size))[#title]
 
 #let footer-column(column, cfg) = {
   let f = cfg.footer
   footer-text(cfg, {
     let title = column.at("title", default: none)
     if title != none {
-      text(weight: 700, size: len(f.title_size))[#title]
+      footer-title(title, cfg)
       v(len(f.title_gap))
     }
     let rows = column.at("rows", default: ())
@@ -337,6 +348,15 @@
       if index + 1 < rows.len() { linebreak() }
     }
   })
+}
+
+// A column as the line layout strings it: its title, then its rows.
+#let footer-items(column, cfg) = {
+  let items = ()
+  let title = column.at("title", default: none)
+  if title != none { items.push(footer-title(title, cfg)) }
+  for row in column.at("rows", default: ()) { items.push(footer-row(row, cfg)) }
+  items
 }
 
 // The `line` layout: each column a line of its own, title first, the items
@@ -350,15 +370,7 @@
   let separator = [#f.separator]
   let lines = ()
   for column in f.columns {
-    let items = ()
-    let title = column.at("title", default: none)
-    if title != none {
-      items.push(text(weight: 700, size: len(f.title_size))[#title])
-    }
-    for row in column.at("rows", default: ()) {
-      items.push(footer-row(row, cfg))
-    }
-
+    let items = footer-items(column, cfg)
     let current = ()
     for item in items {
       let longer = current + (item,)
@@ -375,6 +387,81 @@
     .map(line => if line.len() == 1 { line.first() } else { line.map(box).join(separator) })
     .join(linebreak())
 })
+
+// What the band holds, at the width it holds it.
+#let footer-body(cfg) = {
+  let f = cfg.footer
+  let columns = f.columns
+  box(width: len(cfg.page.width) - 2 * len(cfg.page.margin.x), if f.layout == "line" {
+    footer-text(cfg, footer-lines(cfg))
+  } else {
+    grid(
+      columns: (1fr,) * columns.len(),
+      column-gutter: len(f.gutter),
+      // Top, so that the column titles line up across the band even when one
+      // column runs to more lines than its neighbour.
+      align: top,
+      ..columns.map(column => footer-column(column, cfg)),
+    )
+  })
+}
+
+// The footer's type at another size, the rest of it in proportion.
+#let footer-at(f, size) = {
+  let k = size / f.size
+  f + (
+    size: size,
+    title_size: f.title_size * k,
+    leading: f.leading * k,
+    title_gap: f.title_gap * k,
+  )
+}
+
+// Whether every line of the footer sets without a break: no row wider than
+// its column, no column too long for one line. Needs `context`.
+#let footer-fits(cfg) = {
+  let f = cfg.footer
+  let width = len(cfg.page.width) - 2 * len(cfg.page.margin.x)
+  let wide(item) = measure(footer-type(cfg, item)).width
+  if f.layout == "line" {
+    let separator = [#f.separator]
+    f.columns.all(column => wide(footer-items(column, cfg).map(box).join(separator)) <= width)
+  } else {
+    let n = f.columns.len()
+    let slot = (width - len(f.gutter) * (n - 1)) / n
+    f.columns.all(column => footer-items(column, cfg).all(item => wide(item) <= slot))
+  }
+}
+
+// `fit` and `auto`, settled into the plain numbers the rest of this file
+// reads. The type comes down a quarter point at a time until it fits, and no
+// lower than `fit`; a band of `auto` height is then measured at that size, and
+// the room kept clear for it is the same sum `resolve()` in config.py does for
+// a band whose height was given. Needs `context`.
+#let settle-footer(cfg) = {
+  let f = cfg.footer
+  if not f.show or (f.fit == none and f.height != none) { return cfg }
+
+  if f.fit != none {
+    let size = f.size
+    while size > f.fit and not footer-fits(cfg + (footer: footer-at(f, size))) {
+      size = calc.max(f.fit, size - 0.25)
+    }
+    f = footer-at(f, size)
+  }
+
+  let page = cfg.page
+  if f.height == none {
+    f.height = measure(footer-body(cfg + (footer: f))).height / 1pt + 2 * f.padding
+    let needed = f.height + f.offset + f.gap
+    if f.pages == "all" {
+      page.margin.bottom = calc.max(page.margin.bottom, needed)
+    } else {
+      page.footer_reserve = calc.max(0, needed - page.margin.bottom)
+    }
+  }
+  cfg + (footer: f, page: page)
+}
 
 #let footer-band(cfg) = {
   let f = cfg.footer
@@ -400,19 +487,7 @@
     ))
   }
 
-  let columns = f.columns
-  let body = box(width: page-width - 2 * side, if f.layout == "line" {
-    footer-text(cfg, footer-lines(cfg))
-  } else {
-    grid(
-      columns: (1fr,) * columns.len(),
-      column-gutter: len(f.gutter),
-      // Top, so that the column titles line up across the band even when one
-      // column runs to more lines than its neighbour.
-      align: top,
-      ..columns.map(column => footer-column(column, cfg)),
-    )
-  })
+  let body = footer-body(cfg)
 
   // Centre the block in the band's own height rather than at a fixed offset,
   // so a column may gain or lose a row without anything being re-measured.
@@ -424,7 +499,8 @@
 
 // ─── The document ──────────────────────────────────────────────────────────
 
-#let letterhead(cfg, body) = {
+#let letterhead(cfg, body) = context {
+  let cfg = settle-footer(cfg)
   let pal = cfg.palette
   let type = cfg.typography
   let accent = rgb(pal.accent)

@@ -353,6 +353,8 @@ BY_PATH: dict[str, Any] = {
     "footer.pages": enum(config_module._FOOTER_PAGES),
     "footer.layout": enum(config_module._FOOTER_LAYOUTS),
     "footer.columns": {"type": "array", "items": ref("footerColumn")},
+    "footer.height": {"oneOf": [enum(("auto",)), ref("length")]},
+    "footer.fit": {"oneOf": [ref("length"), {"type": "null"}, {"const": False}]},
     "markdown.format": {"type": "string"},
     "markdown.extra_args": {"type": "array", "items": {"type": "string"}},
     "pdf.standard": {

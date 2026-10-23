@@ -278,6 +278,24 @@ class TestBuild:
         )
         assert resolved["footer"]["layout"] == "line"
 
+    @pytest.mark.parametrize("layout", ["columns", "line"])
+    def test_a_footer_measured_and_fitted_compiles(self, project, layout):
+        # `auto` and `fit` are settled in Typst, before the page is set: a
+        # row too long for its column is what makes the type come down.
+        text = (project / "letterhead.yaml").read_text(encoding="utf-8")
+        text = text.replace("  layout: columns\n", f"  layout: {layout}\n")
+        text = text.replace("  pages: last", "  pages: all\n  fit: 6pt", 1)
+        text = text.replace("  height: 50.2mm", "  height: auto", 1)
+        text = text.replace(
+            "        - 00100 Exampleton\n",
+            "        - 00100 Exampleton\n        - " + "A long line " * 20 + "\n",
+        )
+        (project / "letterhead.yaml").write_text(text, encoding="utf-8")
+
+        config = config_module.load(project / "letterhead.yaml")
+        results = builder.build_all(config)
+        assert results[0].pdf.read_bytes().startswith(b"%PDF")
+
     def test_a_designed_sheet_carries_the_document(self, project):
         # The tool turned around: no band of its own, a picture of paper
         # somebody designed elsewhere, and Markdown set on top of it.

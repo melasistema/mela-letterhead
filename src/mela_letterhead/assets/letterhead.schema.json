@@ -833,7 +833,34 @@
           "description": "What stands between the title and the rows of a line, and between the rows, in the \"line\" layout."
         },
         "height": {
+          "oneOf": [
+            {
+              "enum": [
+                "auto"
+              ]
+            },
+            {
+              "$ref": "#/$defs/length"
+            }
+          ],
+          "description": "`auto` makes the band as tall as what it holds, plus `padding` above and below; the room kept clear for it follows."
+        },
+        "padding": {
           "$ref": "#/$defs/length"
+        },
+        "fit": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/length"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "const": false
+            }
+          ],
+          "description": "A smallest size, to shrink the type towards until no line has to break: no row wraps in its column, no column runs to a second line. The title, leading and title gap shrink with it. Off when empty."
         },
         "gap": {
           "$ref": "#/$defs/length",

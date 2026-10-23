@@ -276,7 +276,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # What stands between the title and the rows of a line, and between
         # the rows, in the "line" layout.
         "separator": " · ",
+        # `auto` makes the band as tall as what it holds, plus `padding` above
+        # and below; the room kept clear for it follows.
         "height": "50.2mm",
+        "padding": "3mm",
+        # A smallest size, to shrink the type towards until no line has to
+        # break: no row wraps in its column, no column runs to a second line.
+        # The title, leading and title gap shrink with it. Off when empty.
+        "fit": None,
         # Clearance between the band and the last line of text above it.
         "gap": "6.9mm",
         "rule": "3pt",
@@ -643,9 +650,11 @@ def resolve(
 
     # A footer on every page has to be reserved in the margin; a footer on the
     # last page only is reserved by a block at the end of the body, so the
-    # inner pages keep their full text height.
+    # inner pages keep their full text height. A band of `auto` height is
+    # measured before it can be reserved, so `settle-footer` in Typst does the
+    # same sum once it knows the height.
     footer_reserve = 0.0
-    if footer["show"]:
+    if footer["show"] and footer["height"] is not None:
         needed = footer["height"] + footer["offset"] + footer["gap"]
         if footer["pages"] == "all":
             margin_bottom = max(margin_bottom, needed)
@@ -1163,12 +1172,34 @@ def _resolve_footer(
             _resolve_footer_column(column, f"footer.columns[{index}]", links=links)
         )
 
+    # `auto` crosses as null: only Typst knows how tall the type sets.
+    height = footer["height"]
+    if isinstance(height, str) and height.strip().lower() == "auto":
+        height = None
+    else:
+        height = units.to_points(height, "footer.height")
+
+    size = units.to_points(footer["size"], "footer.size")
+    fit = footer["fit"]
+    if fit is None or fit is False or (isinstance(fit, str) and not fit.strip()):
+        fit = None
+    else:
+        fit = units.to_points(fit, "footer.fit")
+        if fit <= 0 or fit > size:
+            raise ConfigError(
+                f"footer.fit: {footer['fit']!r} is not between nothing and footer.size",
+                hint="It is the smallest the type may shrink to, so a size below "
+                "footer.size — 6.5pt, say.",
+            )
+
     return {
         "show": bool(footer["show"]) and bool(columns),
         "pages": pages,
         "layout": layout,
         "separator": separator,
-        "height": units.to_points(footer["height"], "footer.height"),
+        "height": height,
+        "padding": units.to_points(footer["padding"], "footer.padding"),
+        "fit": fit,
         "gap": units.to_points(footer["gap"], "footer.gap"),
         "rule": units.to_points(footer["rule"], "footer.rule"),
         "fill": _colour_or(footer["fill"], "footer.fill", palette["band"]),
@@ -1185,7 +1216,7 @@ def _resolve_footer(
         "offset": units.to_points(footer["offset"], "footer.offset", positive=False),
         "align": _alignment(footer["align"], "footer.align"),
         "title_size": units.to_points(footer["title_size"], "footer.title_size"),
-        "size": units.to_points(footer["size"], "footer.size"),
+        "size": size,
         "leading": units.to_points(footer["leading"], "footer.leading"),
         "title_gap": units.to_points(footer["title_gap"], "footer.title_gap"),
         "gutter": units.to_points(footer["gutter"], "footer.gutter"),
