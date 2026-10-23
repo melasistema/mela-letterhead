@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-10-23
+
 ### Changed
 
 - Paragraphs are set a blank line apart: `typography.paragraph_spacing` now
@@ -469,7 +471,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   resolved configuration, in the document's own language, as the documentation
   has always said they were.
 
-[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/melasistema/mela-letterhead/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/melasistema/mela-letterhead/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/melasistema/mela-letterhead/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/melasistema/mela-letterhead/compare/v0.5.2...v0.6.0
