@@ -767,6 +767,26 @@ Columns are laid out evenly, so two give you halves and three give you thirds.
 Column titles line up across the band even when one column runs longer than its
 neighbour, and the whole block centres itself in the band's height.
 
+A slim footer on every page wants the same detail set as lines instead:
+
+```yaml
+footer:
+  pages: all
+  layout: line           # each column a centred line of its own
+  separator: " · "       # between the title and the rows, and between rows
+  height: 16mm
+  size: 7.5pt
+  title_size: 7.5pt
+```
+
+Nothing else changes: the columns above print as two lines, each led by its
+title, every row keeping its bold label, its colour and its link — the IBAN
+stays red in the middle of its line. A line too long for the band breaks
+between two rows, never inside one, and the separator does not trail at the
+end. `gutter` and `title_gap` have nothing to space in this layout and are
+ignored. The band keeps the `height` you give it, so a lower band is set by
+`height` and the type by `size`.
+
 ---
 
 ## A PDF you can file
@@ -1055,6 +1075,30 @@ defaults, validation — happens in Python, and `letterhead.typ` receives a
 finished structure with one language chosen and every length already a number of
 points. The Typst module contains no brand, no language and no document, which
 is why it never needs editing to print somebody else's paper.
+
+### Running it from a program
+
+A script, a CI job or a server that builds letters should run the engine with
+the interpreter it was installed into rather than the command on `PATH`, which
+may belong to some other install:
+
+```bash
+python -m mela_letterhead build letter.md
+```
+
+That form, its exit statuses and where errors go are kept stable across
+releases:
+
+| Status | Meaning |
+|---|---|
+| `0` | Everything asked for was written. |
+| `1` | Something was refused — a setting, a document, the toolchain, a failed compile. Documents built before the failure are left written. |
+| `2` | The command line itself was wrong: an unknown command or option. |
+| `130` | Interrupted. |
+
+An error goes to standard error, as `Error: ` and the message on one line, then
+the hint indented beneath it; progress goes to standard output. Give each job
+its own directory: a build writes its intermediates beside the letterhead.
 
 ### Project layout
 

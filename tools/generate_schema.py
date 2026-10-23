@@ -351,6 +351,7 @@ BY_PATH: dict[str, Any] = {
     "header.fields.when_empty": enum(config_module._WHEN_EMPTY),
     "header.fields.items": {"type": "array", "items": ref("headerField")},
     "footer.pages": enum(config_module._FOOTER_PAGES),
+    "footer.layout": enum(config_module._FOOTER_LAYOUTS),
     "footer.columns": {"type": "array", "items": ref("footerColumn")},
     "markdown.format": {"type": "string"},
     "markdown.extra_args": {"type": "array", "items": {"type": "string"}},

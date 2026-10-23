@@ -315,12 +315,17 @@
   }
 }
 
-#let footer-column(column, cfg) = {
+// The type every footer layout is set in.
+#let footer-text(cfg, body) = {
   let f = cfg.footer
   set par(leading: len(f.leading), spacing: len(f.leading), justify: false)
   set text(font: cfg.fonts.display, size: len(f.size), fill: rgb(f.ink))
+  align(alignment-of(f.align), body)
+}
 
-  align(alignment-of(f.align), {
+#let footer-column(column, cfg) = {
+  let f = cfg.footer
+  footer-text(cfg, {
     let title = column.at("title", default: none)
     if title != none {
       text(weight: 700, size: len(f.title_size))[#title]
@@ -333,6 +338,43 @@
     }
   })
 }
+
+// The `line` layout: each column a line of its own, title first, the items
+// joined by the separator. A line that runs long is broken between two items,
+// never inside one, and the separator stays out of the break: the lines are
+// packed here, by measuring, rather than left to the paragraph, which would
+// break at any space and leave a separator hanging at the end of a line. An
+// item wider than the band on its own is the one thing left to wrap.
+#let footer-lines(cfg) = layout(size => {
+  let f = cfg.footer
+  let separator = [#f.separator]
+  let lines = ()
+  for column in f.columns {
+    let items = ()
+    let title = column.at("title", default: none)
+    if title != none {
+      items.push(text(weight: 700, size: len(f.title_size))[#title])
+    }
+    for row in column.at("rows", default: ()) {
+      items.push(footer-row(row, cfg))
+    }
+
+    let current = ()
+    for item in items {
+      let longer = current + (item,)
+      if current.len() > 0 and measure(longer.join(separator)).width > size.width {
+        lines.push(current)
+        current = (item,)
+      } else {
+        current = longer
+      }
+    }
+    if current.len() > 0 { lines.push(current) }
+  }
+  lines
+    .map(line => if line.len() == 1 { line.first() } else { line.map(box).join(separator) })
+    .join(linebreak())
+})
 
 #let footer-band(cfg) = {
   let f = cfg.footer
@@ -359,14 +401,18 @@
   }
 
   let columns = f.columns
-  let body = box(width: page-width - 2 * side, grid(
-    columns: (1fr,) * columns.len(),
-    column-gutter: len(f.gutter),
-    // Top, so that the column titles line up across the band even when one
-    // column runs to more lines than its neighbour.
-    align: top,
-    ..columns.map(column => footer-column(column, cfg)),
-  ))
+  let body = box(width: page-width - 2 * side, if f.layout == "line" {
+    footer-text(cfg, footer-lines(cfg))
+  } else {
+    grid(
+      columns: (1fr,) * columns.len(),
+      column-gutter: len(f.gutter),
+      // Top, so that the column titles line up across the band even when one
+      // column runs to more lines than its neighbour.
+      align: top,
+      ..columns.map(column => footer-column(column, cfg)),
+    )
+  })
 
   // Centre the block in the band's own height rather than at a fixed offset,
   // so a column may gain or lose a row without anything being re-measured.

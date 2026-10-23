@@ -232,6 +232,9 @@ running:
 footer:
   show: true
   pages: last # or `all`, to print it on every page
+  # `columns` side by side, or `line`: each column a centred line of its own,
+  # which is what a slim footer on every page wants.
+  layout: columns
   height: 50.2mm
   align: center
   # Air between the rows of a column. The band centres whatever it holds, so

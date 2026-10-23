@@ -8,6 +8,8 @@ and failed on the next command. These tests hold it to the larger promise.
 
 import os
 import shutil
+import subprocess
+import sys
 
 import pytest
 
@@ -828,3 +830,40 @@ class TestParser:
 
     def test_a_configuration_that_is_not_there_is_reported_not_raised(self, tmp_path):
         assert cli.main(["check", "-c", str(tmp_path / "nope.yaml")]) == 1
+
+
+class TestRunFromAProgram:
+    """What the README promises a program that runs this one.
+
+    Exit statuses and where an error is written are an interface: a script, a
+    CI job or a server wrapping `python -m mela_letterhead` decides on them, so
+    they are held here rather than left to whatever `main` happens to return.
+    """
+
+    def run(self, cwd, *args):
+        return subprocess.run(
+            [sys.executable, "-m", "mela_letterhead", *args],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_the_module_is_the_command(self, tmp_path):
+        done = self.run(tmp_path, "--version")
+        assert done.returncode == 0
+        assert __version__ in done.stdout
+
+    def test_a_refused_letterhead_is_1_with_the_error_on_stderr(self, tmp_path):
+        (tmp_path / "letterhead.yaml").write_text(
+            SOUND + "palette:\n  accent: not-a-colour\n", encoding="utf-8"
+        )
+        (tmp_path / "letter.md").write_text("Hello.\n", encoding="utf-8")
+        done = self.run(tmp_path, "build", "letter.md")
+        assert done.returncode == 1
+        assert done.stderr.startswith("Error: ")
+        assert "palette.accent" in done.stderr
+        assert not (tmp_path / "letter.pdf").exists()
+
+    def test_a_command_it_does_not_know_is_2(self, tmp_path):
+        assert self.run(tmp_path, "bulid").returncode == 2

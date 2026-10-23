@@ -821,6 +821,17 @@
           ],
           "description": "\"last\" prints the band on the final page only; \"all\" on every page. Not spelled `on`, which YAML reads as the boolean true."
         },
+        "layout": {
+          "enum": [
+            "columns",
+            "line"
+          ],
+          "description": "\"columns\" sets the columns side by side, each title above its rows; \"line\" sets each column as a centred line of its own, title first and rows after it, wrapping between rows when the line runs long."
+        },
+        "separator": {
+          "$ref": "#/$defs/text",
+          "description": "What stands between the title and the rows of a line, and between the rows, in the \"line\" layout."
+        },
         "height": {
           "$ref": "#/$defs/length"
         },

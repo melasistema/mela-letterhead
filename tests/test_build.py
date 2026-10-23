@@ -256,6 +256,28 @@ class TestBuild:
         # The quotations are not dragged along by the header band.
         assert resolved["palette"]["band"] == "#f5f5f7"
 
+    def test_a_footer_set_in_lines_compiles(self, project):
+        # On every page, and on a page narrow enough that a line has to break:
+        # between two items, and inside the one item wider than the band.
+        text = (project / "letterhead.yaml").read_text(encoding="utf-8")
+        text = text.replace("  layout: columns\n", "  layout: line\n")
+        text = text.replace("  pages: last", "  pages: all", 1)
+        text = text.replace(
+            "        - 00100 Exampleton\n",
+            "        - 00100 Exampleton\n        - " + "A long line " * 20 + "\n",
+        )
+        (project / "letterhead.yaml").write_text(text, encoding="utf-8")
+
+        config = config_module.load(project / "letterhead.yaml")
+        results = builder.build_all(config, keep_build=True)
+        assert results[0].pdf.read_bytes().startswith(b"%PDF")
+        resolved = json.loads(
+            (config.build_dir / "example-letter" / "document.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert resolved["footer"]["layout"] == "line"
+
     def test_a_designed_sheet_carries_the_document(self, project):
         # The tool turned around: no band of its own, a picture of paper
         # somebody designed elsewhere, and Markdown set on top of it.

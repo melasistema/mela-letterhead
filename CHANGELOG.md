@@ -6,6 +6,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `footer.layout: line`, which sets each footer column as a centred line of its
+  own — title first, rows after it, joined by `footer.separator` (` · ` unless
+  told otherwise). It is what a slim footer on every page wants, and until now
+  the only way to get one was to write each line as a single string, which
+  lost what a row is: the bold label, the colour of a highlighted or muted row,
+  the link on an e-mail address. A row is now set the same way in either
+  layout, so the same `columns:` print either way and switching is one key. A
+  long line breaks between two rows, never inside one and never with a
+  separator left trailing, because the lines are packed by measuring rather
+  than left to the paragraph. `columns` remains the default.
+
+### Documentation
+
+- "Running it from a program": `python -m mela_letterhead` as the way a script
+  or a server should run the engine, and the exit statuses and error output it
+  can rely on — now held by tests rather than by habit.
+
 ## [0.6.0] — 2026-10-23
 
 ### Added

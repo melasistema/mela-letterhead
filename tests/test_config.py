@@ -610,6 +610,39 @@ class TestValidation:
         with pytest.raises(ConfigError, match="footer.pages"):
             config_module.resolve(config, make_document(tmp_path), "en")
 
+    def test_footer_layout_takes_only_columns_or_line(self, tmp_path):
+        config = make_config(
+            tmp_path, MINIMAL.replace("footer:\n", "footer:\n  layout: grid\n")
+        )
+        with pytest.raises(ConfigError, match="footer.layout"):
+            config_module.resolve(config, make_document(tmp_path), "en")
+
+    def test_footer_separator_must_be_text(self, tmp_path):
+        config = make_config(
+            tmp_path, MINIMAL.replace("footer:\n", "footer:\n  separator: [a, b]\n")
+        )
+        with pytest.raises(ConfigError, match="footer.separator"):
+            config_module.resolve(config, make_document(tmp_path), "en")
+
+    def test_a_footer_is_set_in_columns_unless_asked(self, tmp_path):
+        config = make_config(tmp_path)
+        footer = config_module.resolve(config, make_document(tmp_path), "en")["footer"]
+        assert footer["layout"] == "columns"
+        assert footer["separator"] == " · "
+
+    def test_a_footer_set_in_lines_keeps_its_rows_whole(self, tmp_path):
+        # The rows reach Typst as rows, label, link and all, whichever layout
+        # sets them: a line is a way of setting the columns, not a flattening.
+        config = make_config(
+            tmp_path,
+            MINIMAL.replace("footer:\n", 'footer:\n  layout: LINE\n  separator: " | "\n'),
+        )
+        footer = config_module.resolve(config, make_document(tmp_path), "en")["footer"]
+        assert footer["layout"] == "line"
+        assert footer["separator"] == " | "
+        row = footer["columns"][0]["rows"][2]
+        assert row["link"] == "mailto:hello@acme.example"
+
     def test_an_alignment_must_be_one_of_three(self, tmp_path):
         config = make_config(tmp_path, MINIMAL + "running:\n  align: middle\n")
         with pytest.raises(ConfigError, match="running.align"):

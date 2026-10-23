@@ -269,6 +269,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # "last" prints the band on the final page only; "all" on every page.
         # Not spelled `on`, which YAML reads as the boolean true.
         "pages": "last",
+        # "columns" sets the columns side by side, each title above its rows;
+        # "line" sets each column as a centred line of its own, title first
+        # and rows after it, wrapping between rows when the line runs long.
+        "layout": "columns",
+        # What stands between the title and the rows of a line, and between
+        # the rows, in the "line" layout.
+        "separator": " · ",
         "height": "50.2mm",
         # Clearance between the band and the last line of text above it.
         "gap": "6.9mm",
@@ -365,6 +372,9 @@ _BACKGROUND_PAGES = ("first", "rest", "all")
 #: Which pages carry the footer band. Not spelled `on`, which YAML reads as the
 #: boolean true.
 _FOOTER_PAGES = ("last", "all")
+
+#: How the footer's columns are set: side by side, or one line each.
+_FOOTER_LAYOUTS = ("columns", "line")
 
 #: What becomes of a header field whose value is empty: a line to fill in by
 #: hand, the label alone, or nothing at all.
@@ -1133,6 +1143,20 @@ def _resolve_footer(
             hint="'last' prints the band on the final page only; 'all' on every page.",
         )
 
+    layout = str(footer.get("layout", "columns")).lower()
+    if layout not in _FOOTER_LAYOUTS:
+        raise ConfigError(
+            f"footer.layout: expected {_one_of(_FOOTER_LAYOUTS)}, got {footer['layout']!r}",
+            hint="'columns' sets the columns side by side; 'line' sets each one "
+            "as a line of its own.",
+        )
+    separator = footer.get("separator")
+    if not isinstance(separator, str):
+        raise ConfigError(
+            f"footer.separator: expected text, got {separator!r}",
+            hint="Quote it to keep its spaces: separator: \" · \"",
+        )
+
     columns = []
     for index, column in enumerate(footer.get("columns") or []):
         columns.append(
@@ -1142,6 +1166,8 @@ def _resolve_footer(
     return {
         "show": bool(footer["show"]) and bool(columns),
         "pages": pages,
+        "layout": layout,
+        "separator": separator,
         "height": units.to_points(footer["height"], "footer.height"),
         "gap": units.to_points(footer["gap"], "footer.gap"),
         "rule": units.to_points(footer["rule"], "footer.rule"),
