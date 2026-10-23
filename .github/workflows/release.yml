@@ -62,7 +62,7 @@ jobs:
           cache: pip
 
       - name: Install Pandoc
-        run: sudo apt-get update && sudo apt-get install --yes pandoc
+        uses: ./.github/actions/apt-pandoc
 
       - name: Install Typst
         uses: typst-community/setup-typst@v5

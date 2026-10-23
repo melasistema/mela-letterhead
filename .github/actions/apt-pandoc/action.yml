@@ -1,0 +1,42 @@
+name: Pandoc from apt
+description: >
+  Installs Ubuntu's own Pandoc package, the one `apt install pandoc` gives a
+  Debian user, from a cache rather than from the mirror on every run.
+
+# Pandoc is 27 MB, and the Azure mirror the runners use serves it at anything
+# from 10 MB/s to 20 kB/s, so the same `apt-get install` took nine seconds in
+# one job and ten and a half minutes in the job beside it. Ubuntu's package
+# doesn't change within a runner image (noble's universe is frozen at 3.1.3),
+# so it is downloaded once per image and installed from the cache after that.
+#
+# `dpkg -i` instead of `apt-get install`: everything the package depends on is
+# already on the image, so the package lists never have to be fetched on a hit.
+# If an image ever stops carrying one of those, dpkg names it and fails, which
+# is what should happen.
+runs:
+  using: composite
+  steps:
+    # ImageOS (ubuntu24) is set on the runner rather than by the workflow, so
+    # the `env` context doesn't carry it; the shell does.
+    - id: image
+      shell: bash
+      run: echo "os=$ImageOS" >> "$GITHUB_OUTPUT"
+
+    - id: cache
+      uses: actions/cache@v6
+      with:
+        path: ~/apt-pandoc
+        key: apt-pandoc-${{ runner.arch }}-${{ steps.image.outputs.os }}
+
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        mkdir -p ~/apt-pandoc
+        cd ~/apt-pandoc
+        apt-get download pandoc pandoc-data
+
+    - shell: bash
+      run: |
+        sudo dpkg -i ~/apt-pandoc/*.deb
+        pandoc --version | head -1
