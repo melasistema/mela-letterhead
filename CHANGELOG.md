@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-10-23
+
 ### Added
 
 - `footer.height: auto`, which makes the footer band as tall as what it holds
@@ -454,7 +456,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   resolved configuration, in the document's own language, as the documentation
   has always said they were.
 
-[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/melasistema/mela-letterhead/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/melasistema/mela-letterhead/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/melasistema/mela-letterhead/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/melasistema/mela-letterhead/compare/v0.5.1...v0.5.2
