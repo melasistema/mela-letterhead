@@ -204,6 +204,57 @@ class TestResolve:
         assert "Heading" in resolved["running"]["text"]
 
 
+class TestUntitled:
+    """A document with no `title:`, no `running-title:` and no heading."""
+
+    def _document(self, tmp_path, front_matter="lang: it\n"):
+        path = tmp_path / "document.md"
+        path.write_text(f"---\n{front_matter}---\nEgregio Dottore,\n", encoding="utf-8")
+        return Document.load(path)
+
+    def test_the_running_header_shows_the_page_numbers_alone(self, tmp_path):
+        resolved = config_module.resolve(make_config(tmp_path), self._document(tmp_path), "it")
+        assert resolved["running"]["text"] == "pagina {page} di {pages}"
+
+    def test_the_pdf_title_is_the_locales_untitled(self, tmp_path):
+        resolved = config_module.resolve(make_config(tmp_path), self._document(tmp_path), "it")
+        assert resolved["document"]["title"] == "Documento senza titolo"
+
+    def test_a_format_the_user_wrote_is_kept(self, tmp_path):
+        config = make_config(
+            tmp_path, MINIMAL + "running:\n  format: \"{brand} {title}· {page}\"\n"
+        )
+        resolved = config_module.resolve(config, self._document(tmp_path), "it")
+        assert resolved["running"]["text"] == "Acme Studio · {page}"
+
+    def test_a_title_brings_the_full_line_back(self, tmp_path):
+        document = self._document(tmp_path, "lang: it\ntitle: Diffida\n")
+        resolved = config_module.resolve(make_config(tmp_path), document, "it")
+        assert resolved["running"]["text"] == "Diffida · pagina {page} di {pages}"
+        assert resolved["document"]["title"] == "Diffida"
+
+
+class TestFooterKeep:
+    def _resolve(self, tmp_path, written):
+        config = make_config(tmp_path, MINIMAL.replace("footer:\n", f"footer:\n{written}"))
+        return config_module.resolve(config, make_document(tmp_path), "en")["footer"]
+
+    def test_the_closing_and_the_signature_by_default(self, tmp_path):
+        assert self._resolve(tmp_path, "")["keep"] == 2
+
+    def test_zero_lets_the_band_go_over_alone(self, tmp_path):
+        assert self._resolve(tmp_path, "  keep: 0\n")["keep"] == 0
+
+    def test_a_band_on_every_page_keeps_nothing(self, tmp_path):
+        # It sits in the margin, so there is no reserve at the end to keep with.
+        assert self._resolve(tmp_path, "  pages: all\n  keep: 3\n")["keep"] == 0
+
+    @pytest.mark.parametrize("value", ["-1", "two", "1.5", "true"])
+    def test_anything_but_a_whole_number_from_zero_is_refused(self, tmp_path, value):
+        with pytest.raises(ConfigError, match="footer.keep"):
+            self._resolve(tmp_path, f"  keep: {value}\n")
+
+
 class TestImages:
     def _images(self, tmp_path, text=MINIMAL):
         resolved = config_module.resolve(

@@ -69,9 +69,12 @@ class TestTitles:
         path = write(tmp_path, "d.md", "# A *quoted* `offer`\n")
         assert Document.load(path).title == "A quoted offer"
 
-    def test_falls_back_to_the_filename(self, tmp_path):
+    def test_the_file_name_is_not_a_title(self, tmp_path):
+        # The Studio writes every document as `document.md`, and a letter
+        # rarely has a heading: "document" would print in its running header.
         path = write(tmp_path, "quarterly-report.md", "Just text.\n")
-        assert Document.load(path).title == "quarterly-report"
+        assert Document.load(path).title == ""
+        assert Document.load(path).running_title == ""
 
     def test_running_title_defaults_to_the_title(self, tmp_path):
         path = write(tmp_path, "d.md", "---\ntitle: Long title\n---\nText\n")

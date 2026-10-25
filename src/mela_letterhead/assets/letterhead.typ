@@ -25,10 +25,12 @@
 //  fixes the bottom margin for the whole document, so the room it needs is
 //  reserved by a block at the end of the body instead — `page.footer_reserve`,
 //  computed by the tool. A footer on every page reserves margin as usual.
-//  A footer of `auto` height, or one asked to fit, is the one thing measured
-//  here rather than resolved by the tool, because only Typst knows how wide
-//  and tall its type sets: `settle-footer` turns it into plain numbers once,
-//  before the page is set, and everything after it reads them as usual.
+//  A footer of `auto` height, or one asked to fit, is measured here rather
+//  than resolved by the tool, because only Typst knows how wide and tall its
+//  type sets: `settle-footer` turns it into plain numbers once, before the
+//  page is set, and everything after it reads them as usual. The other thing
+//  only Typst knows is where the pages break, so `keep-with-footer` sticks
+//  the end of the letter to that reserve here, `footer.keep` blocks of it.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── JSON to Typst ─────────────────────────────────────────────────────────
@@ -497,6 +499,99 @@
   }
 }
 
+// ─── The end of the letter ─────────────────────────────────────────────────
+//
+// The room for a last-page footer is a block at the end of the body. Should it
+// not fit under the last line, it breaks to a page of its own, and the band is
+// drawn there under no text at all. So the end of the letter is kept with it:
+// the last `footer.keep` blocks of text stick to the reserve and go over
+// together, the closing and the signature above the band.
+//
+// Typst sees the body as one run of inline content and block elements; a
+// paragraph is the inline content between two paragraph breaks. The blocks are
+// counted the same way here, from the body's own elements.
+
+// What stands in a flow on its own rather than in a paragraph.
+#let block-funcs = (
+  heading, list.item, enum.item, terms.item, table, figure, block, quote,
+  grid, align, place, pagebreak, v, line, rect, outline, par,
+)
+
+// Neither has a name of its own to compare with.
+#let space-func = [ ].func()
+#let sequence-func = [].func()
+
+#let is-block(c) = {
+  let f = c.func()
+  if f in block-funcs { true }
+  else if f == raw or f == math.equation { c.block }
+  else { false }
+}
+
+// Whether `c` sets any text a reader would count: a picture, a caption under
+// one, and a line of nothing but spaces do not.
+#let has-text(c) = {
+  let f = c.func()
+  if f == image or (f == figure and c.kind == image) { return false }
+  if c.has("text") and type(c.text) == str {
+    return c.text.replace("\u{a0}", "").trim() != ""
+  }
+  c.fields().values().any(v => {
+    if type(v) == content { has-text(v) }
+    else if type(v) == array { v.any(x => type(x) == content and has-text(x)) }
+    else { false }
+  })
+}
+
+// Where each block of `children` starts. Paragraph breaks and spaces belong
+// to no block; consecutive items of one list are one block.
+#let block-starts(children) = {
+  let starts = ()
+  let open = false
+  let last = none
+  for (i, c) in children.enumerate() {
+    let f = c.func()
+    if f == parbreak { open = false; continue }
+    if f == space-func { continue }
+    if is-block(c) {
+      let item = f in (list.item, enum.item, terms.item)
+      if not (item and last == f) { starts.push(i) }
+      open = false
+      last = f
+    } else {
+      if not open { starts.push(i) }
+      open = true
+      last = f
+    }
+  }
+  starts
+}
+
+// The body, with its last `keep` blocks of text stuck to the reserve after
+// them. A picture or an empty line among them goes with them, uncounted. They
+// stay breakable, so a long table at the end still runs on as it always did.
+#let keep-with-footer(body, keep, reserve) = {
+  let children = if body.func() == sequence-func { body.children } else { (body,) }
+  let starts = block-starts(children)
+  let from = children.len()
+  let counted = 0
+  for start in starts.rev() {
+    if counted == keep { break }
+    let end = starts.find(s => s > start)
+    let piece = children.slice(start, if end == none { children.len() } else { end })
+    if piece.any(has-text) { counted += 1 }
+    from = start
+  }
+  if keep == 0 or from == children.len() {
+    body
+    block(height: reserve, width: 100%)
+  } else {
+    children.slice(0, from).join()
+    block(sticky: true, width: 100%, children.slice(from).join())
+    block(height: reserve, width: 100%)
+  }
+}
+
 // ─── The document ──────────────────────────────────────────────────────────
 
 #let letterhead(cfg, body) = context {
@@ -700,8 +795,8 @@
   // the whole document, so the first page buys its extra height here.
   v(len(cfg.page.first_page_extra))
 
-  pictures(body)
-
-  // Room for the footer band on the last page, for the same reason.
-  block(height: len(cfg.page.footer_reserve), width: 100%)
+  // Room for the footer band on the last page, for the same reason, with the
+  // end of the letter kept on that page.
+  let reserve = len(cfg.page.footer_reserve)
+  pictures(keep-with-footer(body, if reserve > 0pt { cfg.footer.keep } else { 0 }, reserve))
 }

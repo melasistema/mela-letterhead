@@ -7,6 +7,7 @@ missing, so a contributor without the toolchain can still run the rest.
 import json
 import re
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -138,10 +139,7 @@ class TestBuild:
         assert len(result.inputs) == len(set(result.inputs))
 
     def test_a_document_chooses_its_own_language(self, project):
-        (project / "locales").mkdir()
-        (project / "locales" / "de.yaml").write_text(
-            "running_header: '{title} · Seite {page} von {pages}'\n", encoding="utf-8"
-        )
+        # German ships with the package: the project needs no `locales/`.
         (project / "angebot.md").write_text(
             "---\ntitle: Angebot\nlang: de\ntype: Angebot\n---\n# Angebot\n\nText.\n",
             encoding="utf-8",
@@ -295,6 +293,54 @@ class TestBuild:
         config = config_module.load(project / "letterhead.yaml")
         results = builder.build_all(config)
         assert results[0].pdf.read_bytes().startswith(b"%PDF")
+
+    # The end of a letter, placed in the strip above the band: room for it on
+    # its page, none for it and the band. A fresh page, then a spacer that
+    # leaves 145pt of it, worked out from the page alone so that no font moves
+    # it: the ending takes about 115pt and the band's reserve about 50pt.
+    STRIP = (
+        '`#pagebreak() #context { let page = json("document.json").page; '
+        "v((page.height - page.margin.top - page.margin.bottom - 145) * 1pt) }`"
+        "{=typst}"
+    )
+    ENDING = (
+        "Distinti saluti.`#context [#metadata(here().page()) <closing>]`{=typst}\n\n"
+        "&nbsp;\n\n![](assets/logo.svg){width=20%}\n\n"
+        "Avv. Chiara Lombardi"
+        "`#context [#metadata((here().page(), counter(page).final().first())) <end>]`"
+        "{=typst}\n"
+    )
+
+    def _ending(self, project, keep):
+        (project / "lettera.md").write_text(
+            f"---\nlang: it\nletterhead:\n  footer:\n    keep: {keep}\n---\n\n"
+            f"Egregio Dottore,\n\n{self.STRIP}\n\n{self.ENDING}",
+            encoding="utf-8",
+        )
+        config = config_module.load(project / "letterhead.yaml")
+        builder.build_all(config, [project / "lettera.md"], keep_build=True)
+        workdir = config.build_dir / "lettera"
+
+        def value(label):
+            found = subprocess.run(
+                [toolchain.find("typst").path, "eval", f"query(<{label}>).first().value",
+                 "--in", "document.typ"],
+                cwd=workdir, capture_output=True, text=True, check=True,
+            )
+            return json.loads(found.stdout)
+
+        closing = value("closing")
+        signature, pages = value("end")
+        return closing, signature, pages
+
+    def test_the_end_of_the_letter_goes_over_with_the_band(self, project):
+        # The closing, the empty line, the signature picture and the name: two
+        # blocks of text, the picture and the empty line carried uncounted.
+        assert self._ending(project, 2) == (3, 3, 3)
+
+    def test_without_it_the_band_goes_over_alone(self, project):
+        # What 0.8 did, and proof that the spacer really lands in the strip.
+        assert self._ending(project, 0) == (2, 2, 3)
 
     def test_a_designed_sheet_carries_the_document(self, project):
         # The tool turned around: no band of its own, a picture of paper

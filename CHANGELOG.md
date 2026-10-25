@@ -6,6 +6,39 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `footer.keep`, how many blocks of text at the end of a letter go over to a
+  new page with a last-page band rather than leave it there alone. Default 2:
+  the closing and the signature. A paragraph, a list or a table is one block;
+  a picture or an empty line among them goes along uncounted, so a scanned
+  signature between the closing and the name does not split them. `0` gives
+  the old behaviour.
+- Italian and German locale packs ship with the package: `lang: it` prints
+  "pagina 2 di 3" and `lang: de` "Seite 2 von 3" in the running header, with
+  no `locales/` folder in the project. A project pack still corrects a shipped
+  one, string by string.
+- `running_header_untitled`, the running header of a document with no title:
+  "page 2 of 3" in English, in every shipped language. `check` notes each
+  document it applies to.
+
+### Fixed
+
+- A letter whose last lines fell in the strip a last-page footer needs printed
+  one more page, holding nothing but the footer band. The room for the band is
+  a block at the end of the body, and it broke to a page of its own; the end of
+  the letter now goes over with it (`footer.keep`). A letter whose band
+  already fits prints exactly as before.
+
+### Changed
+
+- The file name is no longer a title. A document with no `title:` and no
+  heading used to show its file name in the running header and the PDF
+  metadata — "document · page 2 of 2" for every letter from a program that
+  names its files `document.md`. Its running header now shows the page numbers
+  alone and its PDF title is the locale's `untitled`. Add `title:` to the front
+  matter to get the old output back.
+
 ## [0.8.1] — 2026-10-23
 
 ### Changed

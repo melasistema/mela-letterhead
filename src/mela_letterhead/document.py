@@ -115,11 +115,16 @@ class Document:
 
     @property
     def title(self) -> str:
-        """The document title, from front matter or the first heading."""
+        """The document title, from front matter or the first heading.
+
+        Empty when there is neither. The file name is not a title: a letter
+        rarely has a heading, and a running header reading "document" or
+        "draft-3" is worse than one that shows the page numbers alone.
+        """
         title = self.metadata.get("title")
         if isinstance(title, str) and title.strip():
             return title.strip()
-        return self._first_heading() or self.path.stem
+        return self._first_heading() or ""
 
     @property
     def running_title(self) -> str:

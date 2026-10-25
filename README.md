@@ -371,7 +371,7 @@ Seven keys belong to the tool:
 
 | Key | Meaning |
 | --- | --- |
-| `title` | The document title. Falls back to the first heading, then the filename. |
+| `title` | The document title. Falls back to the first heading. With neither, the running header shows the page numbers alone and the PDF's title is the locale's "untitled". |
 | `running-title` | What the running header shows. Falls back to `title`. |
 | `lang` | This document's language. Falls back to `language:` in the configuration. |
 | `author` | Written into the PDF metadata. Falls back to the brand. |
@@ -381,6 +381,10 @@ Seven keys belong to the tool:
 
 `running_title` and `language` are accepted as spellings of `running-title` and
 `lang`.
+
+The file name is never a title. A letter rarely has a heading, and a running
+header reading "draft-3 · page 2 of 3" is worse than "page 2 of 3";
+`mela-letterhead check` notes each document that has no title.
 
 Everything else — `type`, `reference`, `date`, `validity` above — is **yours**,
 and reaches the paper through a header field that names it. Kebab-case and
@@ -773,6 +777,7 @@ of them. `header.rule` is the line along the band's lower edge — `0pt` for non
 ```yaml
 footer:
   pages: last            # or `all`
+  keep: 2                # blocks of text kept on the last page with the band
   columns:
     - title: { en: Acme Studio }
       rows:
@@ -791,6 +796,16 @@ footer:
 Columns are laid out evenly, so two give you halves and three give you thirds.
 Column titles line up across the band even when one column runs longer than its
 neighbour, and the whole block centres itself in the band's height.
+
+With `pages: last`, the band never goes over to a page of its own. When a
+letter's last lines fall in the strip the band needs, its last `keep` blocks of
+text go over to the new page with it: by default 2, the closing and the
+signature. A block of text is a paragraph, a list or a table; a signature
+written over two lines with a line break is one paragraph, and a picture or an
+empty line between the closing and the name goes along without being counted.
+A letter whose band fits under its last line prints exactly as before, and a
+long table at the very end still runs on across pages. `keep: 0` lets the band
+go over alone, as earlier versions did.
 
 A slim footer on every page wants the same detail set as lines instead:
 
@@ -958,22 +973,34 @@ from the document's language, through its bare language subtag, to the project
 default, to English — so a footer you have translated into German and a column
 title you have not will still both print.
 
-**The tool's own strings live in locale packs.** There is only one at the
-moment — the running header — and English ships with the package. To add a
-language, drop a file beside your `letterhead.yaml`:
+**The tool's own strings live in locale packs.** There are three: the running
+header, the same line for a document with no title, and the PDF title such a
+document gets. English, Italian and German ship with the package, so `lang: it`
+prints "pagina 2 di 3" with nothing to set up. To add another language, drop a
+file beside your `letterhead.yaml`:
 
 ```yaml
-# locales/de.yaml
-running_header: "{title} · Seite {page} von {pages}"
-untitled: "Unbenanntes Dokument"
+# locales/fr.yaml
+running_header: "{title} · page {page} sur {pages}"
+running_header_untitled: "page {page} sur {pages}"
+untitled: "Document sans titre"
 ```
 
 No code changes, no rebuild, nothing to submit upstream. A project pack also
-overrides the built-in one for the same language, so you can correct a shipped
-string without forking anything. `mela-letterhead check` lists what it found.
+overrides the built-in one for the same language, string by string, so you can
+correct a shipped string without forking anything:
+
+```yaml
+# locales/de.yaml — the rest of the German pack still applies
+running_header: "{title} · S. {page}/{pages}"
+```
+
+`mela-letterhead check` lists what it found.
 
 Placeholders available to `running_header` are `{title}`, `{brand}`, `{page}`
-and `{pages}`.
+and `{pages}`; `running_header_untitled` takes the same but `{title}`. A
+`running.format` in the configuration replaces both, and with no title its
+`{title}` is left empty.
 
 Typst is told the document's language too, so hyphenation and quotation marks
 follow it — Italian gets its curly apostrophes, German its hyphenation rules.
@@ -1164,7 +1191,7 @@ src/mela_letterhead/
   builder.py              the pipeline
   toolchain.py            finding and running pandoc and typst
   units.py                lengths, colours, page sizes
-  locales/en.yaml         the strings the tool writes itself
+  locales/                the strings the tool writes itself: en, it, de
   assets/
     letterhead.typ        the layout — brand-free, language-free
     pandoc-typst.template

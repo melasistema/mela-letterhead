@@ -643,7 +643,7 @@ def command_check(args: argparse.Namespace) -> int:
             # block can fail on its own account.
             if settings_resolve:
                 config_module.resolve(config, document, language, profile)
-            note = _overrides_note(document, profile)
+            note = _overrides_note(document, profile) + _title_note(document)
         except LetterheadError as error:
             problems += 1
             _problem(f"{_relative(path)}: {error.message}", error.hint)
@@ -755,6 +755,18 @@ def _overrides_note(document: Document, profile: str | None) -> str:
     if settings:
         parts.append(f"+{settings} override{'' if settings == 1 else 's'}")
     return f"  {_dim('(' + ', '.join(parts) + ')')}" if parts else ""
+
+
+def _title_note(document: Document) -> str:
+    """Said of a document with no title, which is otherwise noticed on page 2.
+
+    It is not a problem: a letter rarely has a heading. But the running header
+    then shows the page numbers alone, and the PDF's title is the locale's
+    "untitled".
+    """
+    if document.running_title:
+        return ""
+    return f"  {_dim('(no title: running header shows page numbers only)')}"
 
 
 def _problem(message: str, hint: str = "") -> None:

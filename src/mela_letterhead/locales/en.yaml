@@ -4,9 +4,11 @@
 # (field labels, footer rows, the brand name) is yours, and lives in
 # letterhead.yaml.
 #
-# To add a language, copy this file to `locales/<tag>.yaml` next to your
-# letterhead.yaml — for example `locales/it.yaml` — and translate the values.
-# Anything you leave out falls back to English. No code changes, no rebuild.
+# Italian and German ship beside it. To add another language, copy this file
+# to `locales/<tag>.yaml` next to your letterhead.yaml — for example
+# `locales/fr.yaml` — and translate the values. A file there named after a
+# shipped pack corrects it string by string. Anything you leave out falls back
+# to English. No code changes, no rebuild.
 #
 # Placeholders:
 #   {title}  the document's running title
@@ -17,5 +19,11 @@
 # Line printed at the top of every page after the first.
 running_header: "{title} · page {page} of {pages}"
 
-# Used when a document declares no title of its own.
+# The same line for a document with no title of its own: no `title:`, no
+# `running-title:` and no heading. A placeholder there would print on a real
+# letter, so it shows the page numbers alone.
+running_header_untitled: "page {page} of {pages}"
+
+# The PDF's title, in its metadata, when a document declares no title of its
+# own.
 untitled: "Untitled document"

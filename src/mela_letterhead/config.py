@@ -270,6 +270,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # "last" prints the band on the final page only; "all" on every page.
         # Not spelled `on`, which YAML reads as the boolean true.
         "pages": "last",
+        # With "last", how many blocks of text at the end of the letter go
+        # over to the band's page with it rather than leave it alone there:
+        # the closing and the signature. A picture or an empty line among
+        # them is carried, not counted. 0 lets the band go over alone.
+        "keep": 2,
         # "columns" sets the columns side by side, each title above its rows;
         # "line" sets each column as a centred line of its own, title first
         # and rows after it, wrapping between rows when the line runs long.
@@ -1079,15 +1084,22 @@ def _resolve_running(
     brand: dict[str, Any],
     document: Any,
 ) -> dict[str, Any]:
-    template = running.get("format") or strings.get(
-        "running_header", "{title} · page {page} of {pages}"
-    )
+    # A document with no title takes the pack's line without one, rather than
+    # a placeholder printed on a real letter. A format the user wrote is theirs
+    # and is kept, with `{title}` left empty.
+    title = document.running_title
+    if running.get("format"):
+        template = running["format"]
+    elif title:
+        template = strings.get("running_header", "{title} · page {page} of {pages}")
+    else:
+        template = strings.get("running_header_untitled", "page {page} of {pages}")
     if not isinstance(template, str):
         raise ConfigError(f"running.format: expected a string, got {template!r}")
 
     # {title} and {brand} are known now; {page} and {pages} are not known until
     # the document has been laid out, so they travel to Typst as they are.
-    text = template.replace("{title}", document.running_title or document.title or "")
+    text = template.replace("{title}", title)
     text = text.replace("{brand}", str(brand.get("name") or ""))
 
     return {
@@ -1153,6 +1165,14 @@ def _resolve_footer(
             hint="'last' prints the band on the final page only; 'all' on every page.",
         )
 
+    keep = footer.get("keep", 2)
+    if isinstance(keep, bool) or not isinstance(keep, int) or keep < 0:
+        raise ConfigError(
+            f"footer.keep: expected a whole number from 0 up, got {keep!r}",
+            hint="It counts blocks of text: 2 keeps the closing and the signature "
+            "with the band; 0 lets the band go over alone.",
+        )
+
     layout = str(footer.get("layout", "columns")).lower()
     if layout not in _FOOTER_LAYOUTS:
         raise ConfigError(
@@ -1196,6 +1216,8 @@ def _resolve_footer(
     return {
         "show": bool(footer["show"]) and bool(columns),
         "pages": pages,
+        # Only a band on the last page is reserved at the end of the body.
+        "keep": keep if pages == "last" else 0,
         "layout": layout,
         "separator": separator,
         "height": height,

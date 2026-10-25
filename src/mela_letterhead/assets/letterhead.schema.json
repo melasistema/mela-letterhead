@@ -822,6 +822,11 @@
           ],
           "description": "\"last\" prints the band on the final page only; \"all\" on every page. Not spelled `on`, which YAML reads as the boolean true."
         },
+        "keep": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "With \"last\", how many blocks of text at the end of the letter go over to the band's page with it rather than leave it alone there: the closing and the signature. A picture or an empty line among them is carried, not counted. 0 lets the band go over alone."
+        },
         "layout": {
           "enum": [
             "columns",

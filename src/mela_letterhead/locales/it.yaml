@@ -1,0 +1,6 @@
+# Italian locale pack. What is missing here comes from en.yaml, which also
+# explains each string and its placeholders.
+
+running_header: "{title} · pagina {page} di {pages}"
+running_header_untitled: "pagina {page} di {pages}"
+untitled: "Documento senza titolo"

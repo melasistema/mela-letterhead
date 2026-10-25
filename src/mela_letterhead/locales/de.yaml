@@ -1,0 +1,6 @@
+# German locale pack. What is missing here comes from en.yaml, which also
+# explains each string and its placeholders.
+
+running_header: "{title} · Seite {page} von {pages}"
+running_header_untitled: "Seite {page} von {pages}"
+untitled: "Unbenanntes Dokument"

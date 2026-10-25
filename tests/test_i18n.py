@@ -1,4 +1,5 @@
 import pytest
+import yaml
 
 from mela_letterhead import i18n
 from mela_letterhead.errors import ConfigError
@@ -152,13 +153,39 @@ class TestLocalePacks:
         assert strings["running_header"] == "p. {page}"
 
     def test_a_new_language_needs_no_code(self, tmp_path):
-        (tmp_path / "de.yaml").write_text(
-            "running_header: '{title} · Seite {page} von {pages}'\n", encoding="utf-8"
+        (tmp_path / "fr.yaml").write_text(
+            "running_header: '{title} · page {page} sur {pages}'\n", encoding="utf-8"
         )
-        strings = i18n.load_locale(["de", "en"], tmp_path)
-        assert "Seite" in strings["running_header"]
+        strings = i18n.load_locale(["fr", "en"], tmp_path)
+        assert "sur" in strings["running_header"]
         # Anything the new pack omits still falls back to English.
         assert strings["untitled"] == "Untitled document"
+
+    @pytest.mark.parametrize(
+        "tag, running, untitled",
+        [
+            ("it", "{title} · pagina {page} di {pages}", "Documento senza titolo"),
+            ("de", "{title} · Seite {page} von {pages}", "Unbenanntes Dokument"),
+        ],
+    )
+    def test_italian_and_german_ship_with_the_package(self, tag, running, untitled):
+        strings = i18n.load_locale([tag, "en"])
+        assert strings["running_header"] == running
+        assert strings["untitled"] == untitled
+
+    def test_every_shipped_pack_says_everything_english_does(self):
+        # A string missing from a shipped pack would print in English on an
+        # Italian letter, which is the bug the packs are there to fix.
+        english = set(i18n.load_locale(["en"]))
+        for tag in i18n.available_locales():
+            path = i18n._BUILTIN_LOCALES / f"{tag}.yaml"
+            assert set(yaml.safe_load(path.read_text(encoding="utf-8"))) == english, tag
+
+    def test_a_project_pack_corrects_a_shipped_one_string_by_string(self, tmp_path):
+        (tmp_path / "de.yaml").write_text("running_header: 'S. {page}'\n", encoding="utf-8")
+        strings = i18n.load_locale(["de", "en"], tmp_path)
+        assert strings["running_header"] == "S. {page}"
+        assert strings["untitled"] == "Unbenanntes Dokument"
 
     def test_a_pack_that_sets_a_string_twice_is_refused(self, tmp_path):
         (tmp_path / "de.yaml").write_text(
@@ -170,5 +197,5 @@ class TestLocalePacks:
         assert "'running_header' is set twice" in caught.value.message
 
     def test_available_locales_lists_both_sources(self, tmp_path):
-        (tmp_path / "de.yaml").write_text("untitled: x\n", encoding="utf-8")
-        assert i18n.available_locales(tmp_path) == ["de", "en"]
+        (tmp_path / "fr.yaml").write_text("untitled: x\n", encoding="utf-8")
+        assert i18n.available_locales(tmp_path) == ["de", "en", "fr", "it"]
