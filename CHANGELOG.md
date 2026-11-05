@@ -6,6 +6,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `running.gap`, the room kept between the mark and the running header's line
+  beside it. Default 6mm.
+
+### Fixed
+
+- A long title ran into the logo in the running header, and could wrap onto a
+  second line under it. The line now keeps clear of the mark and stays on one
+  line: a title too long for it is shortened with "…", and the page numbers
+  always show in full. A `running-title:` sets a shorter one by hand.
+
 ## [0.9.0] — 2026-10-25
 
 ### Added

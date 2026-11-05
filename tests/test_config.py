@@ -195,13 +195,30 @@ class TestResolve:
         assert resolved["page"]["footer_reserve"] > 0
 
     def test_page_placeholders_are_left_for_typst(self, tmp_path):
-        # {title} is known now; {page} is not known until the pages exist.
+        # {page} is not known until the pages exist, nor how wide {title}
+        # sets: Typst shortens a title too long for the line.
         resolved = config_module.resolve(
             make_config(tmp_path), make_document(tmp_path), "en"
         )
         assert "{page}" in resolved["running"]["text"]
-        assert "{title}" not in resolved["running"]["text"]
-        assert "Heading" in resolved["running"]["text"]
+        assert "{title}" in resolved["running"]["text"]
+        assert resolved["running"]["title"] == "Heading"
+
+    def test_the_running_title_travels_on_its_own(self, tmp_path):
+        path = tmp_path / "document.md"
+        path.write_text(
+            "---\ntitle: A title far too long for the running header\n"
+            "running-title: Short\n---\n# Heading\n",
+            encoding="utf-8",
+        )
+        resolved = config_module.resolve(make_config(tmp_path), Document.load(path), "en")
+        assert resolved["running"]["title"] == "Short"
+        assert resolved["document"]["title"] == "A title far too long for the running header"
+
+    def test_the_gap_beside_the_mark_is_a_length(self, tmp_path):
+        config = make_config(tmp_path, MINIMAL + "running:\n  gap: 4mm\n")
+        resolved = config_module.resolve(config, make_document(tmp_path), "en")
+        assert resolved["running"]["gap"] == pytest.approx(4 * 72 / 25.4)
 
 
 class TestUntitled:
@@ -230,7 +247,8 @@ class TestUntitled:
     def test_a_title_brings_the_full_line_back(self, tmp_path):
         document = self._document(tmp_path, "lang: it\ntitle: Diffida\n")
         resolved = config_module.resolve(make_config(tmp_path), document, "it")
-        assert resolved["running"]["text"] == "Diffida · pagina {page} di {pages}"
+        assert resolved["running"]["text"] == "{title} · pagina {page} di {pages}"
+        assert resolved["running"]["title"] == "Diffida"
         assert resolved["document"]["title"] == "Diffida"
 
 

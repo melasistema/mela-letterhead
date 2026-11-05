@@ -372,7 +372,7 @@ Seven keys belong to the tool:
 | Key | Meaning |
 | --- | --- |
 | `title` | The document title. Falls back to the first heading. With neither, the running header shows the page numbers alone and the PDF's title is the locale's "untitled". |
-| `running-title` | What the running header shows. Falls back to `title`. |
+| `running-title` | What the running header shows. Falls back to `title`. A title too long for the line is shortened with "…"; the page numbers always show. |
 | `lang` | This document's language. Falls back to `language:` in the configuration. |
 | `author` | Written into the PDF metadata. Falls back to the brand. |
 | `output` | Name of the PDF to write. Falls back to the source filename. |
@@ -1001,6 +1001,12 @@ Placeholders available to `running_header` are `{title}`, `{brand}`, `{page}`
 and `{pages}`; `running_header_untitled` takes the same but `{title}`. A
 `running.format` in the configuration replaces both, and with no title its
 `{title}` is left empty.
+
+The line keeps `running.gap` (6mm) clear of the mark beside it, and stays on one
+line. A title that does not fit is cut at the longest start that does, with
+"…" after it; the page numbers are never cut. A short `running-title:` in the
+front matter reads better than a cut one, and leaves the full title in the
+PDF.
 
 Typst is told the document's language too, so hyphenation and quotation marks
 follow it — Italian gets its curly apostrophes, German its hyphenation rules.

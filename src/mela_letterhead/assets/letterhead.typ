@@ -253,13 +253,43 @@
 
 // ─── Running header (every page after the first) ───────────────────────────
 
+// The line beside the mark, on one line within `width`. The title is the one
+// part of it that may be shortened, to the longest start that fits with "…"
+// after it: the page numbers are what the line is for, and are never cut.
+#let running-line(r, cfg, width, current, total) = {
+  let set-line(s) = text(
+    font: cfg.fonts.sans,
+    size: len(r.size),
+    fill: rgb(cfg.palette.muted),
+    tracking: len(r.tracking),
+  )[#s]
+  // The page numbers are the one thing the tool cannot resolve in advance;
+  // they go in before the title, so a title is never read as placeholders.
+  let numbered = r.text.replace("{page}", str(current)).replace("{pages}", str(total))
+  let with(title) = numbered.replace("{title}", title)
+  let fits(title) = measure(set-line(with(title))).width <= width
+
+  if r.title == "" or fits(r.title) { return set-line(with(r.title)) }
+
+  // A start of the title, without the spaces and dashes it would end on.
+  let cut(n) = {
+    let start = r.title.clusters().slice(0, n).sum(default: "")
+    start.trim(regex("[\\s,;:·–—/-]+"), at: end) + "…"
+  }
+  // The longest start that fits: `low` always does (or is 0), `high` never.
+  let low = 0
+  let high = r.title.clusters().len()
+  while high - low > 1 {
+    let middle = calc.quo(low + high, 2)
+    if fits(cut(middle)) { low = middle } else { high = middle }
+  }
+  set-line(with(cut(low)))
+}
+
 #let running-header(cfg, current, total) = {
   let r = cfg.running
   let side = len(cfg.page.margin.x)
   let column = len(cfg.page.width) - 2 * side
-
-  // The page numbers are the one thing the tool cannot resolve in advance.
-  let label = r.text.replace("{page}", str(current)).replace("{pages}", str(total))
 
   place(
     top + left,
@@ -268,17 +298,14 @@
     brand-mark(cfg, len(r.logo_width), cfg.brand.wordmark.running_color, logo: r.logo),
   )
 
-  place(top + left, dx: side, dy: len(r.text_y), box(
-    width: column,
-    align(
-      alignment-of(r.align),
-      text(
-        font: cfg.fonts.sans,
-        size: len(r.size),
-        fill: rgb(cfg.palette.muted),
-        tracking: len(r.tracking),
-      )[#label],
-    ),
+  // The line keeps clear of the mark's slot. Centred, it keeps clear of the
+  // same width on the other side too, so that it stays on the page's middle.
+  let slot = if len(r.logo_width) > 0pt { len(r.logo_width) + len(r.gap) } else { 0pt }
+  let width = if r.align == "center" { column - 2 * slot } else { column - slot }
+
+  place(top + left, dx: side + slot, dy: len(r.text_y), box(
+    width: width,
+    align(alignment-of(r.align), running-line(r, cfg, width, current, total)),
   ))
 
   let rule = len(r.rule)

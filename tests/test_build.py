@@ -214,6 +214,26 @@ class TestBuild:
         assert resolved["running"]["logo"] == resolved["brand"]["logo"] == "logo.svg"
         assert not (workdir / "running-logo.svg").exists()
 
+    def test_a_title_too_long_for_the_running_header_still_builds(self, project):
+        # Typst shortens it beside the mark: the search for the longest start
+        # that fits runs on every page after the first, in every alignment.
+        title = ("A quotation for the complete renewal of the roof, " * 4).strip()
+        letter = project / "example-letter.md"
+        text = re.sub(r"(?m)^(title|running-title): .*\n", "", letter.read_text(encoding="utf-8"))
+        letter.write_text(text.replace("---\n", f"---\ntitle: {title}\n", 1), encoding="utf-8")
+        yaml = project / "letterhead.yaml"
+        written = yaml.read_text(encoding="utf-8")
+        for align in ("right", "left", "center"):
+            aligned = written.replace("running:\n", f"running:\n  align: {align}\n", 1)
+            yaml.write_text(aligned, encoding="utf-8")
+            config = config_module.load(yaml)
+            results = builder.build_all(config, keep_build=True)
+            assert results[0].pdf.read_bytes().startswith(b"%PDF")
+            workdir = config.build_dir / results[0].pdf.stem
+            resolved = json.loads((workdir / "document.json").read_text(encoding="utf-8"))
+            assert resolved["running"]["title"] == title
+            assert resolved["running"]["align"] == align
+
     def test_a_wordmark_a_coloured_band_and_a_border_compile_together(self, project):
         # The three ways a letterhead is made to look like somebody's own
         # without an image anywhere in it.

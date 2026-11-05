@@ -262,6 +262,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # Hairline under the running header. Set to 0 to remove it.
         "rule": "0.5pt",
         "rule_y": "19mm",
+        # Room kept between the mark and the line beside it. A title that
+        # would come closer is shortened with "…".
+        "gap": "6mm",
         # Overrides the locale pack's `running_header`.
         "format": None,
     },
@@ -1097,10 +1100,13 @@ def _resolve_running(
     if not isinstance(template, str):
         raise ConfigError(f"running.format: expected a string, got {template!r}")
 
-    # {title} and {brand} are known now; {page} and {pages} are not known until
-    # the document has been laid out, so they travel to Typst as they are.
-    text = template.replace("{title}", title)
-    text = text.replace("{brand}", str(brand.get("name") or ""))
+    # {brand} is known now; {page} and {pages} are not known until the document
+    # has been laid out, so they travel to Typst as they are. So does {title}:
+    # only Typst knows how wide it sets, and a title too long for the line is
+    # shortened there, leaving the page numbers whole.
+    text = template.replace("{brand}", str(brand.get("name") or ""))
+    if not title:
+        text = text.replace("{title}", "")
 
     return {
         "show": bool(running["show"]),
@@ -1115,7 +1121,9 @@ def _resolve_running(
         "tracking": units.to_points(running["tracking"], "running.tracking", positive=False),
         "rule": units.to_points(running["rule"], "running.rule"),
         "rule_y": units.to_points(running["rule_y"], "running.rule_y"),
+        "gap": units.to_points(running["gap"], "running.gap"),
         "text": text,
+        "title": title,
     }
 
 

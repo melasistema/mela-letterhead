@@ -802,6 +802,10 @@
         "rule_y": {
           "$ref": "#/$defs/length"
         },
+        "gap": {
+          "$ref": "#/$defs/length",
+          "description": "Room kept between the mark and the line beside it. A title that would come closer is shortened with \"…\"."
+        },
         "format": {
           "$ref": "#/$defs/text",
           "description": "Overrides the locale pack's `running_header`."
