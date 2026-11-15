@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate ``assets/letterhead.schema.json`` from ``DEFAULT_CONFIG``.
 
-What this buys, in one sentence: **`_reject_unknown_keys`'s answer, in the
+What this buys, in one sentence: **`_check_settings`'s answer, in the
 editor, before anything is run.** An editor with `yaml-language-server` in it —
 which is what VS Code's Red Hat YAML extension, Neovim, Helix and Zed all use —
 underlines `pallette:` while it is being typed, and the scaffold's first line is
@@ -428,7 +428,7 @@ def _object(
     path: str, mapping: dict[str, Any], notes: dict[str, str], described: bool = True
 ) -> dict[str, Any]:
     """A section, with `additionalProperties: false` — the schema's half of
-    `_reject_unknown_keys`, and the reason the editor and the tool give the
+    `_check_settings`, and the reason the editor and the tool give the
     same answer about `colours:`."""
     schema: dict[str, Any] = (
         _palette(mapping, notes)
@@ -453,7 +453,7 @@ def _palette(mapping: dict[str, Any], notes: dict[str, str]) -> dict[str, Any]:
     Every value in it is a colour, named or not: a brand may add colours of its
     own and reach them from anywhere a colour is written, so the open end is a
     colour too. This is the schema's half of the exemption
-    `_reject_unknown_keys` already makes for the same section.
+    `_check_settings` already makes for the same section.
     """
     colours: dict[str, Any] = {}
     for key in mapping:

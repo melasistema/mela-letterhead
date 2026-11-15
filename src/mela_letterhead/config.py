@@ -545,7 +545,7 @@ def load(path: Path | None = None, start: Path | None = None) -> Config:
 
     # Taken out before anything else runs, and this is not tidiness. Left in,
     # `_deep_merge` would merge a profile *into* the schema, which is the
-    # opposite of what a profile is; `_reject_unknown_keys` would refuse every
+    # opposite of what a profile is; `_check_settings` would refuse every
     # profile name as an unknown setting; and `is_translation` against an empty
     # schema node falls through to shape alone, so `profiles: { de:, it: }` —
     # a natural way to name profiles — would be read as a translation *of*
@@ -554,7 +554,12 @@ def load(path: Path | None = None, start: Path | None = None) -> Config:
     profiles = _profiles(raw.pop("profiles", None), path)
 
     version = raw.get("version", DEFAULT_CONFIG["version"])
-    if isinstance(version, int) and version > DEFAULT_CONFIG["version"]:
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ConfigError(
+            f"{path}: version: expected a whole number from 1 up, got {version!r}",
+            hint=f"This release writes 'version: {DEFAULT_CONFIG['version']}'.",
+        )
+    if version > DEFAULT_CONFIG["version"]:
         raise ConfigError(
             f"{path}: this file declares version {version}, but this release "
             f"understands up to version {DEFAULT_CONFIG['version']}",
@@ -562,8 +567,65 @@ def load(path: Path | None = None, start: Path | None = None) -> Config:
         )
 
     merged = _deep_merge(copy.deepcopy(DEFAULT_CONFIG), raw)
-    _reject_unknown_keys(merged, DEFAULT_CONFIG, path)
+    _check_settings(merged, DEFAULT_CONFIG, path)
+    _check_project(merged, path)
     return Config(merged, path, profiles)
+
+
+#: Read straight from the configuration by the builder and the commands, never
+#: through `resolve`, so a profile or a document cannot change them and they
+#: are checked once, when the file is loaded.
+_PROJECT_TEXT = (
+    ("build_dir",),
+    ("documents", "source"),
+    ("documents", "output"),
+    ("documents", "date_format"),
+    ("markdown", "format"),
+)
+_PROJECT_LISTS = (("documents", "include"), ("documents", "exclude"))
+_MARKDOWN_SWITCHES = ("rewrite_table_widths", "drop_horizontal_rules", "bold_table_header")
+
+
+def _check_project(data: dict[str, Any], path: Path) -> None:
+    """The settings that belong to the project rather than to the paper.
+
+    They are read before any document says which language it is in, so none of
+    them may be written per language.
+    """
+    for section in ("documents", "markdown"):
+        if i18n.is_translation(data[section], DEFAULT_CONFIG[section]):
+            raise ConfigError(
+                f"{path}: '{section}' is the same in every language, so it is not "
+                "written per language",
+                hint=_section_hint(section, DEFAULT_CONFIG[section]),
+            )
+    language = data["language"]
+    if not i18n.is_language_tag(language):
+        raise ConfigError(
+            f"{path}: language: expected a language tag, got {language!r}",
+            hint="For example 'en', 'it' or 'de-CH'.",
+        )
+    for keys in _PROJECT_TEXT:
+        value = _at(data, keys)
+        if not isinstance(value, str) or not value.strip():
+            raise ConfigError(f"{path}: {'.'.join(keys)}: expected text, got {value!r}")
+    for keys in _PROJECT_LISTS:
+        value = _at(data, keys)
+        if value is None:
+            data[keys[0]][keys[1]] = []
+        elif not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise ConfigError(
+                f"{path}: {'.'.join(keys)}: expected a list of file patterns, got {value!r}",
+                hint=f"Even one is written as a list: {keys[1]}: ['*.md']",
+            )
+    for name in _MARKDOWN_SWITCHES:
+        _flag(data["markdown"][name], f"markdown.{name}")
+
+
+def _at(data: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        data = data[key]
+    return data
 
 
 def _profiles(written: Any, path: Path) -> dict[str, Any]:
@@ -623,9 +685,10 @@ def resolve(
     # would pass every test that does not use two languages.
     data = copy.deepcopy(config.data)
     for override, where, prefix in _overrides(config, document, profile):
-        _reject_unknown_keys(override, DEFAULT_CONFIG, where, prefix)
+        _check_settings(override, DEFAULT_CONFIG, where, prefix)
         _deep_merge(data, override)
     data = i18n.localise(data, chain, DEFAULT_CONFIG)
+    _fill_defaults(data, DEFAULT_CONFIG)
 
     width, height = units.page_size(data["page"]["size"], "page.size")
     margin = data["page"]["margin"]
@@ -681,7 +744,7 @@ def resolve(
 
     return {
         "brand": {
-            "name": brand.get("name") or "",
+            "name": _text(brand.get("name"), "brand.name") or "",
             # The path as written, with a language map already collapsed. The
             # builder replaces it with the name the file landed under in the
             # build directory.
@@ -695,7 +758,9 @@ def resolve(
         },
         "document": {
             "title": title,
-            "author": brand.get("author") or brand.get("name") or "",
+            "author": _text(brand.get("author"), "brand.author")
+            or _text(brand.get("name"), "brand.name")
+            or "",
             "lang": lang,
             "region": region,
         },
@@ -967,8 +1032,8 @@ def _resolve_typography(typography: dict[str, Any]) -> dict[str, Any]:
         "paragraph_spacing": units.to_em(
             typography["paragraph_spacing"], "typography.paragraph_spacing"
         ),
-        "justify": bool(typography["justify"]),
-        "hyphenate": bool(typography["hyphenate"]),
+        "justify": _flag(typography["justify"], "typography.justify"),
+        "hyphenate": _flag(typography["hyphenate"], "typography.hyphenate"),
         "headings": {
             level: units.to_points(
                 headings.get(level, DEFAULT_CONFIG["typography"]["headings"][level]),
@@ -995,8 +1060,8 @@ def _resolve_images(images: dict[str, Any]) -> dict[str, Any]:
     return {
         "width": width,
         "align": _alignment(images["align"], "images.align"),
-        "frame": bool(images["frame"]),
-        "numbered": bool(images["numbered"]),
+        "frame": _flag(images["frame"], "images.frame"),
+        "numbered": _flag(images["numbered"], "images.numbered"),
         "caption": {
             "size": units.to_points(caption["size"], "images.caption.size"),
             "gap": units.to_points(caption["gap"], "images.caption.gap"),
@@ -1016,7 +1081,7 @@ def _resolve_header(
         )
 
     items: list[dict[str, Any]] = []
-    for index, item in enumerate(fields.get("items") or []):
+    for index, item in enumerate(_list(fields.get("items"), "header.fields.items")):
         where = f"header.fields.items[{index}]"
         if not isinstance(item, dict):
             raise ConfigError(
@@ -1052,7 +1117,7 @@ def _resolve_header(
         items.append({"label": label, "value": value})
 
     return {
-        "show": bool(header["show"]),
+        "show": _flag(header["show"], "header.show"),
         "height": units.to_points(header["height"], "header.height"),
         "gap": units.to_points(header["gap"], "header.gap"),
         "rule": units.to_points(header["rule"], "header.rule"),
@@ -1109,7 +1174,7 @@ def _resolve_running(
         text = text.replace("{title}", "")
 
     return {
-        "show": bool(running["show"]),
+        "show": _flag(running["show"], "running.show"),
         # The path as written, like `brand.logo`, and staged the same way.
         "logo": _as_text(running.get("logo")) or _as_text(brand.get("logo")) or None,
         "logo_width": units.to_points(running["logo_width"], "running.logo_width"),
@@ -1196,7 +1261,7 @@ def _resolve_footer(
         )
 
     columns = []
-    for index, column in enumerate(footer.get("columns") or []):
+    for index, column in enumerate(_list(footer.get("columns"), "footer.columns")):
         columns.append(
             _resolve_footer_column(column, f"footer.columns[{index}]", links=links)
         )
@@ -1222,7 +1287,7 @@ def _resolve_footer(
             )
 
     return {
-        "show": bool(footer["show"]) and bool(columns),
+        "show": _flag(footer["show"], "footer.show") and bool(columns),
         "pages": pages,
         # Only a band on the last page is reserved at the end of the body.
         "keep": keep if pages == "last" else 0,
@@ -1342,6 +1407,33 @@ def _one_of(names: tuple[str, ...]) -> str:
     return f"{', '.join(quoted[:-1])} or {quoted[-1]}"
 
 
+def _text(value: Any, field: str) -> str | None:
+    """A line of text the user wrote, where a number is text too: ``name: 1984``."""
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    raise ConfigError(f"{field}: expected a line of text, got {value!r}")
+
+
+def _list(value: Any, field: str) -> list[Any]:
+    """A list of the user's records, where nothing written is none."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ConfigError(
+            f"{field}: expected a list, got {value!r}",
+            hint="Each entry starts with '- ' on a line of its own.",
+        )
+    return value
+
+
+def _flag(value: Any, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ConfigError(f"{field}: expected true or false, got {value!r}")
+    return value
+
+
 def _as_text(value: Any) -> str | None:
     if value is None:
         return None
@@ -1409,8 +1501,13 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     from a section with one setting in it. Merging ``{ top: 30mm }`` into
     ``page.margin`` has to keep ``x`` and ``bottom``; replacing it with a
     translation has to not.
+
+    A section written with nothing under it (``page:``, every line in it
+    commented out) is a section left as it was, not one replaced by nothing.
     """
     for key, value in override.items():
+        if value is None and isinstance(base.get(key), dict):
+            continue
         if (
             key in base
             and isinstance(base[key], dict)
@@ -1423,34 +1520,92 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
     return base
 
 
-def _reject_unknown_keys(
-    merged: dict[str, Any],
+def _check_settings(
+    written: dict[str, Any],
     reference: dict[str, Any],
     path: Path,
     prefix: str = "",
 ) -> None:
-    """Report keys the schema does not define, with the nearest known name.
+    """Refuse a setting the schema does not define, or one written in the wrong shape.
 
-    A silently ignored ``colours:`` is a bad afternoon; naming it is cheap.
+    A silently ignored ``colours:`` is a bad afternoon; naming it is cheap. So
+    is naming ``page: 5``, which would otherwise surface as a traceback from the
+    resolver that first reached into it. ``prefix`` is how the error names the
+    setting: ``profiles.draft.page``, ``page (de).margin``. What a single value
+    holds is its resolver's to check.
     """
-    for key, value in merged.items():
+    for key, value in written.items():
         where = f"{prefix}{key}"
         if key not in reference:
             suggestion = _closest(str(key), list(reference))
             hint = f"Did you mean '{prefix}{suggestion}'?" if suggestion else ""
             raise ConfigError(f"{path}: unknown setting '{where}'", hint=hint)
+        default = reference[key]
+
+        if not isinstance(default, dict):
+            if isinstance(value, dict) and not i18n.is_translation(value, default):
+                raise ConfigError(
+                    f"{path}: '{where}' takes a single value, not a section",
+                    hint=f"For example: {key}: {_example(default)}",
+                )
+            continue
+
+        if value is None or (isinstance(value, str) and "text" in default):
+            continue  # nothing written, or a section written as its text
+        if not isinstance(value, dict):
+            raise ConfigError(
+                f"{path}: '{where}' is a section of settings, got {value!r}",
+                hint=_section_hint(key, default),
+            )
         # Only descend into sections with a fixed schema. `items`, `columns`
-        # and the palette hold user data, and are validated by their resolvers;
-        # a language map holds translations, and `de` is not a misspelling of
-        # anything — `tagline: { en: ..., de: ... }` replaces the whole section.
-        if (
-            isinstance(value, dict)
-            and isinstance(reference[key], dict)
-            and reference[key]
-            and key != "palette"
-            and not i18n.is_translation(value, reference[key])
-        ):
-            _reject_unknown_keys(value, reference[key], path, prefix=f"{where}.")
+        # and the palette hold user data, and are validated by their resolvers.
+        # A language map holds translations, and `de` is not a misspelling of
+        # anything: each translation is the section again, checked as one.
+        if i18n.is_translation(value, default):
+            for language, section in value.items():
+                if isinstance(section, dict) and key != "palette":
+                    _check_settings(section, default, path, f"{where} ({language}).")
+            continue
+        if default and key != "palette":
+            _check_settings(value, default, path, f"{where}.")
+
+
+def _section_hint(key: str, default: dict[str, Any]) -> str:
+    """The first lines of a section as it is written, to show the shape."""
+    lines = [f"It holds settings of its own, written beneath it:\n  {key}:"]
+    for name, value in list(default.items())[:2]:
+        lines.append(f"    {name}: {_example(value)}")
+    if len(default) > 2:
+        lines.append("    …")
+    return "\n".join(lines)
+
+
+def _example(value: Any) -> str:
+    """A default as it would be written in YAML, or an ellipsis."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str) and value:
+        # Unquoted, a colour would be read as a YAML comment.
+        return f"'{value}'" if value.startswith("#") else value
+    return "…"
+
+
+def _fill_defaults(data: dict[str, Any], reference: dict[str, Any]) -> None:
+    """Put back what a section written per language left out.
+
+    Merging keeps a section's defaults, but a translation replaces the section
+    whole: ``page: { de: { size: a5 } }`` is, once localised, a page with a
+    size and no margins. It starts from the defaults instead, as the same
+    section written once would. The lists inside (`items`, `columns`) are the
+    user's and are never filled.
+    """
+    for key, default in reference.items():
+        if key not in data or (data[key] is None and isinstance(default, dict)):
+            data[key] = copy.deepcopy(default)
+        elif isinstance(default, dict) and default and isinstance(data[key], dict):
+            _fill_defaults(data[key], default)
 
 
 def _closest(word: str, candidates: list[str]) -> str | None:

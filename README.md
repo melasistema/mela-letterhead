@@ -963,6 +963,19 @@ A mapping is read as a translation table when *every* one of its keys looks like
 a language tag (`en`, `pt-BR`, `de_AT`) — so `{ width: 67mm, y: 11.8mm }` stays
 a pair of settings.
 
+A whole section can be written per language too, as one section for each:
+
+```yaml
+page:
+  en: { size: letter }
+  it: { size: a4 }
+```
+
+Each one starts from the defaults, not from the section written elsewhere, and
+is checked like any other: `page: { en: { sizee: a5 } }` is refused as
+`page (en).sizee`. The project's own settings, `documents` and `markdown`, are
+the same in every language and are not written this way.
+
 **A document picks its own language.** `lang: de` in the front matter, and the
 whole letterhead comes out in German: field labels, footer titles, footer rows,
 even the logo if you gave a different one per market. Without `lang`, the
@@ -1220,6 +1233,22 @@ Error: letterhead.yaml: unknown setting 'palete'
 
   Did you mean 'palette'?
 ```
+
+**A value of the wrong kind is refused by name, too.** A section given a single
+value, or a list given one item on its own, says where and shows the shape:
+
+```
+Error: letterhead.yaml: 'page.margin' is a section of settings, got '2cm'
+
+  It holds settings of its own, written beneath it:
+    margin:
+      x: 22mm
+      top: 27.5mm
+      …
+```
+
+A section with nothing under it (`page:`, every line in it commented out) keeps
+its defaults.
 
 **Something got built that is not a document — `README.pdf`, say.** Setting
 `documents.exclude` replaced the default list rather than adding to it, so the

@@ -105,6 +105,11 @@ def is_translation(value: object, schema: object = UNKNOWN) -> bool:
     section's names, which is what lets ``brand.tagline`` be written either way:
     ``{ text:, size: }`` is the section, ``{ en:, de: }`` is a translation of it.
 
+    And a translation of a section is the section again, once per language: a
+    mapping, or the line of text a section with a ``text`` setting may be
+    written as. ``palette: { red: '#f00' }`` is a colour the brand added, not a
+    palette in Red; ``page: { siz: a5 }`` is a typo, not a page in Siz.
+
     ``schema`` is the matching node of the written-shape schema — in practice a
     subtree of :data:`~mela_letterhead.config.DEFAULT_CONFIG`. Where it expects
     a scalar, or is :data:`UNKNOWN`, the shape decides alone.
@@ -112,7 +117,12 @@ def is_translation(value: object, schema: object = UNKNOWN) -> bool:
     if not is_language_map(value):
         return False
     if isinstance(schema, dict) and schema and isinstance(value, dict):
-        return not any(key in schema for key in value)
+        if any(key in schema for key in value):
+            return False
+        shapes: tuple[type, ...] = (dict, type(None))
+        if "text" in schema:
+            shapes += (str,)
+        return all(isinstance(item, shapes) for item in value.values())
     return True
 
 

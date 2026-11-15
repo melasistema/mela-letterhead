@@ -6,6 +6,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- A value of the wrong kind stopped the build with a Python traceback, or with a
+  Typst error about a generated file: `page: 5`, `brand: hello`, a margin
+  written as one length, a list of footer columns written as one. Each is now
+  refused by the setting's name, with the shape it takes, before anything is
+  typeset. A setting that was quietly read as something else is refused the
+  same way: `version: x`, `documents.include: '*.md'` (read one letter at a
+  time), a switch written as `maybe`.
+- A section written per language (`page: { en: { size: letter } }`) lost every
+  setting it did not name, and the build failed. It now starts from the
+  defaults, and what is inside it is checked like any section.
+- A palette colour of the brand's own whose name looks like a language code
+  (`red:`, `oro:`) was read as a translation, and the build failed. So was a
+  three-letter typo in a section; `page: { siz: a5 }` now suggests `size`.
+- A section with nothing under it (`page:`) keeps its defaults.
+
 ## [0.9.1] — 2026-11-05
 
 ### Added

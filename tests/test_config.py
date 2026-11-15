@@ -1,8 +1,11 @@
+import contextlib
+import re
+
 import pytest
 
 from mela_letterhead import config as config_module
 from mela_letterhead.document import Document
-from mela_letterhead.errors import ConfigError
+from mela_letterhead.errors import ConfigError, LetterheadError
 
 MINIMAL = """\
 brand:
@@ -947,3 +950,150 @@ class TestCountingOverrides:
 
     def test_nothing_is_nothing(self):
         assert config_module.count_settings({}) == 0
+
+
+def build_inputs(tmp_path, text):
+    """Everything a build reads from the configuration, short of the toolchain."""
+    from mela_letterhead import builder, markdown_prep
+
+    config = make_config(tmp_path, text)
+    builder.discover_documents(config)
+    document = make_document(tmp_path, "lang: en\n")
+    resolved = config_module.resolve(config, document, "en")
+    markdown_prep.prepare(document.body, config.data["markdown"])
+    return resolved
+
+
+class TestWrongKindOfValue:
+    """A value of the wrong kind is refused by name, before Pandoc and Typst run.
+
+    Each of these was a traceback, a Typst diagnostic about the generated file,
+    or silently read as something else.
+    """
+
+    @pytest.mark.parametrize(
+        "written, named",
+        [
+            ("page: 5\n", "'page' is a section of settings, got 5"),
+            ("header: 5\n", "'header' is a section"),
+            ("images: 5\n", "'images' is a section"),
+            ("running: 5\n", "'running' is a section"),
+            ("brand: hello\n", "'brand' is a section of settings, got 'hello'"),
+            ("pdf: true\n", "'pdf' is a section"),
+            ("fonts: 5\n", "'fonts' is a section"),
+            ("palette: 5\n", "'palette' is a section"),
+            ("page:\n  margin: 2cm\n", "'page.margin' is a section of settings, got '2cm'"),
+            ("version: x\n", "version: expected a whole number"),
+            ("version: 0\n", "version: expected a whole number"),
+            ("language: 5\n", "language: expected a language tag, got 5"),
+            ("documents:\n  include: '*.md'\n", "documents.include: expected a list"),
+            ("documents:\n  source: [a]\n", "documents.source: expected text"),
+            ("markdown:\n  drop_horizontal_rules: maybe\n", "markdown.drop_horizontal_rules"),
+            ("brand:\n  name: 5\n  tagline: hi\n", None),  # a number is text
+        ],
+    )
+    def test_when_the_file_is_read(self, tmp_path, written, named):
+        if named is None:
+            make_config(tmp_path, written)
+            return
+        with pytest.raises(ConfigError, match=re.escape(named)):
+            make_config(tmp_path, written)
+
+    @pytest.mark.parametrize(
+        "written, named",
+        [
+            ("footer:\n  columns: 5\n", "footer.columns: expected a list, got 5"),
+            ("header:\n  fields:\n    items: 3\n", "header.fields.items: expected a list"),
+            ("brand:\n  name: [1, 2]\n", "brand.name: expected a line of text"),
+            ("brand:\n  author: { a: 1 }\n", "'brand.author' takes a single value"),
+            ("typography:\n  justify: maybe\n", "typography.justify: expected true or false"),
+            ("footer:\n  show: 1\n", "footer.show: expected true or false"),
+        ],
+    )
+    def test_when_the_letterhead_is_resolved(self, tmp_path, written, named):
+        with pytest.raises(ConfigError, match=re.escape(named)):
+            build_inputs(tmp_path, written)
+
+    def test_the_hint_shows_the_section_as_it_is_written(self, tmp_path):
+        with pytest.raises(ConfigError) as caught:
+            make_config(tmp_path, "palette: 5\n")
+        assert "palette:\n    band: '#f5f5f7'" in caught.value.hint
+
+    def test_in_a_profile_the_profile_is_named(self, tmp_path):
+        config = make_config(tmp_path, MINIMAL + "profiles:\n  draft:\n    page: 5\n")
+        with pytest.raises(ConfigError, match=re.escape("'profiles.draft.page'")):
+            config_module.resolve(config, make_document(tmp_path), "en", "draft")
+
+    def test_in_a_document_the_block_is_named(self, tmp_path):
+        config = make_config(tmp_path)
+        document = make_document(tmp_path, "lang: en\nletterhead:\n  page: 5\n")
+        with pytest.raises(ConfigError, match=re.escape("'letterhead.page'")):
+            config_module.resolve(config, document, "en")
+
+    def test_a_section_with_nothing_under_it_keeps_its_defaults(self, tmp_path):
+        resolved = build_inputs(tmp_path, "page:\nfooter:\n")
+        assert resolved["page"]["margin"]["x"] == pytest.approx(22 * 72 / 25.4)
+
+    def test_a_typo_is_not_read_as_a_language(self, tmp_path):
+        # `siz` has the shape of a three-letter language code.
+        with pytest.raises(ConfigError) as caught:
+            make_config(tmp_path, "page:\n  siz: a5\n")
+        assert "unknown setting 'page.siz'" in caught.value.message
+        assert "page.size" in caught.value.hint
+
+    def test_a_colour_of_the_brand_is_not_read_as_a_language(self, tmp_path):
+        resolved = build_inputs(tmp_path, "palette:\n  red: '#ff0000'\n")
+        assert resolved["palette"]["red"] == "#ff0000"
+        assert resolved["palette"]["accent"] == "#4a3f8a"
+
+
+class TestSectionPerLanguage:
+    def test_it_starts_from_the_defaults(self, tmp_path):
+        text = "page:\n  en: { size: a5 }\n  it: { size: a4 }\n"
+        resolved = build_inputs(tmp_path, text)
+        assert resolved["page"]["width"] == pytest.approx(148 * 72 / 25.4)
+        assert resolved["page"]["margin"]["x"] == pytest.approx(22 * 72 / 25.4)
+
+    def test_what_is_inside_is_checked_by_its_language(self, tmp_path):
+        with pytest.raises(ConfigError) as caught:
+            make_config(tmp_path, "page:\n  en: { sizee: a5 }\n")
+        assert "unknown setting 'page (en).sizee'" in caught.value.message
+        assert "page (en).size" in caught.value.hint
+
+    def test_the_project_settings_are_not_written_per_language(self, tmp_path):
+        with pytest.raises(ConfigError, match="'documents' is the same in every language"):
+            make_config(tmp_path, "documents:\n  en: { source: letters }\n")
+
+
+def _every_setting(node, prefix=()):
+    for key, value in node.items():
+        yield (*prefix, key)
+        if isinstance(value, dict) and key != "palette":
+            yield from _every_setting(value, (*prefix, key))
+
+
+def _written_at(keys, value):
+    for key in reversed(keys):
+        value = {key: value}
+    return value
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [*_every_setting(config_module.DEFAULT_CONFIG), ("palette", "accent")],
+    ids=".".join,
+)
+def test_no_setting_of_any_kind_ends_in_a_traceback(tmp_path, keys):
+    """Whatever is written, wherever: a build, or an error the CLI reports as one.
+
+    The cases above are what was found; this is what keeps the next setting
+    from adding another, written plainly and as a whole section per language.
+    """
+    import yaml
+
+    for value in (5, 2.5, "x", "", True, None, [1], {"zz": 1}):
+        plain = _written_at(keys, value)
+        translated = _written_at(keys[:1], {"en": _written_at(keys[1:], value)})
+        for written in (plain, translated):
+            with contextlib.suppress(LetterheadError):
+                build_inputs(tmp_path, yaml.safe_dump(written))
