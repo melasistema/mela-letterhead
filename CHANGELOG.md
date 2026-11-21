@@ -6,6 +6,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.9.3] — 2026-11-21
+
 ### Added
 
 - A footer row written as a web address, `https://…` or `www.…`, links itself,
@@ -554,7 +556,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   resolved configuration, in the document's own language, as the documentation
   has always said they were.
 
-[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/melasistema/mela-letterhead/compare/v0.9.3...HEAD
+[0.9.3]: https://github.com/melasistema/mela-letterhead/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/melasistema/mela-letterhead/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/melasistema/mela-letterhead/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/melasistema/mela-letterhead/compare/v0.8.1...v0.9.0
