@@ -38,7 +38,8 @@ prints a rule to sign or fill in by hand, which is what you want for a number
 that has not been issued yet.
 
 **A footer that holds real detail.** Any number of columns, each a title and a
-list of rows. E-mail addresses become links on their own; an IBAN can be picked
+list of rows. E-mail and web addresses become links on their own, and any row
+can carry a link behind its words; an IBAN can be picked
 out in the highlight colour. The block centres itself in the band, so you can
 add or remove a row without touching an offset.
 
@@ -786,12 +787,24 @@ footer:
         - 00100 Exampleton                    # a line with no label
         - ["Tel.", "+00 000 000 0000"]        # a label and a value
         - hello@acme.example                  # becomes a mailto: link
+        - www.acme.example                    # becomes a link too
+        - value: "@acmestudio"                # words, with the link behind them
+          link: https://www.instagram.com/acmestudio
     - title: { en: Bank details }
       rows:
         - label: "IBAN:"
           value: IT00 X000 0000 0000 0000 0000 000
           style: highlight
 ```
+
+A row written as an e-mail address (`name@domain.tld`) or a web address
+(`https://…` or `www.…`) links itself. Any other row links only where you say
+so, with `link:`, which takes `https://`, `http://`, `mailto:` or `tel:` and
+nothing else: a letterhead never carries a script or a path to a local file.
+A social handle such as `@acmestudio` is not an e-mail address and prints as it
+is, with no link, until you give it one. A linked value is underlined. On paper
+nothing can be clicked, so words with a link behind them should still be words
+a reader can find.
 
 Columns are laid out evenly, so two give you halves and three give you thirds.
 Column titles line up across the band even when one column runs longer than its

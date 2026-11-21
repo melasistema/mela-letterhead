@@ -248,7 +248,24 @@
               "$ref": "#/$defs/text"
             },
             "link": {
-              "$ref": "#/$defs/text"
+              "description": "Where the row links to: a web page, an e-mail address or a telephone. E-mail and web addresses written as the value link themselves.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:[hH][tT][tT][pP][sS]://|[hH][tT][tT][pP]://|[mM][aA][iI][lL][tT][oO]:|[tT][eE][lL]:)\\S+$"
+                },
+                {
+                  "type": "object",
+                  "patternProperties": {
+                    "^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})*$": {
+                      "type": "string",
+                      "pattern": "^(?:[hH][tT][tT][pP][sS]://|[hH][tT][tT][pP]://|[mM][aA][iI][lL][tT][oO]:|[tT][eE][lL]:)\\S+$"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "minProperties": 1
+                }
+              ]
             },
             "style": {
               "enum": [

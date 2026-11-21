@@ -223,6 +223,14 @@ def _case_insensitively(word: str) -> str:
     return "".join(f"[{c}{c.upper()}]" if c.isalpha() else re.escape(c) for c in word)
 
 
+#: What a footer row may link to, in any capitalisation, as `config.py` reads it.
+LINK_PATTERN = (
+    "^(?:"
+    + "|".join(_case_insensitively(scheme) for scheme in config_module._LINK_SCHEMES)
+    + r")\S+$"
+)
+
+
 def _page_size() -> dict[str, Any]:
     names = sorted(units._PAGE_SIZES_MM)
     spelt = [*names, *(f"{name}-landscape" for name in names)]
@@ -307,7 +315,12 @@ def _defs() -> dict[str, Any]:
                     "properties": {
                         "label": ref("text"),
                         "value": ref("text"),
-                        "link": ref("text"),
+                        "link": {
+                            "description": "Where the row links to: a web page, an "
+                            "e-mail address or a telephone. E-mail and web addresses "
+                            "written as the value link themselves.",
+                            **translatable({"type": "string", "pattern": LINK_PATTERN}),
+                        },
                         "style": enum(config_module._ROW_STYLES),
                     },
                 },

@@ -20,6 +20,7 @@ about a dictionary.
 from __future__ import annotations
 
 import copy
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -398,6 +399,20 @@ _WHEN_EMPTY = ("rule", "blank", "hide")
 
 #: How a footer row is set.
 _ROW_STYLES = ("normal", "highlight", "muted")
+
+#: What a footer row may link to: a web page, an e-mail address, a telephone.
+#: Nothing else, so that a letterhead cannot carry a script or a local file.
+_LINK_SCHEMES = ("https://", "http://", "mailto:", "tel:")
+_LINK_RE = re.compile(
+    "^(?:" + "|".join(map(re.escape, _LINK_SCHEMES)) + r")\S+$", re.IGNORECASE
+)
+
+#: A value that is an e-mail address, and so links itself. A handle such as
+#: ``@studio`` is not one: something comes before the ``@``, a dot after it.
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+#: A value that is a web address, and so links itself too.
+_WEB_RE = re.compile(r"^(?:https?://|www\.)\S+$", re.IGNORECASE)
 
 #: What each name for a border's sides expands to.
 _BORDER_SIDES: dict[str, tuple[str, ...]] = {
@@ -1376,9 +1391,19 @@ def _resolve_footer_row(row: Any, where: str, links: bool = True) -> dict[str, A
         )
 
     label, value, link = _as_text(label), _as_text(value), _as_text(link)
-    # An e-mail address gets its link for free, however the row was written.
-    if link is None and value and "@" in value and " " not in value:
+    if link is not None:
+        link = link.strip()
+        if not _LINK_RE.match(link):
+            raise ConfigError(
+                f"{where}.link: a link starts with {_one_of(_LINK_SCHEMES)}, got {link!r}",
+                hint="For example:\n  link: https://example.com\n  link: tel:+390212345678",
+            )
+    # An e-mail or web address gets its link for free, however the row was
+    # written; the words of a row that says something else need a `link:`.
+    elif value and _EMAIL_RE.match(value):
         link = "mailto:" + value
+    elif value and _WEB_RE.match(value):
+        link = value if "://" in value else "https://" + value
     # Under PDF/UA-1 the band is a page artifact and an artifact may hold no
     # link, so the target is dropped and the address prints as the text it
     # always was. The underline goes with it — `letterhead.typ` draws one only

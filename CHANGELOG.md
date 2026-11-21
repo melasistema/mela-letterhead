@@ -6,6 +6,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- A footer row written as a web address, `https://…` or `www.…`, links itself,
+  as an e-mail address already did.
+
+### Fixed
+
+- A social handle in the footer, such as `@studio`, was taken for an e-mail
+  address and linked to `mailto:@studio`. Only a real address, with something
+  before the `@` and a dot after it, gets a `mailto:` link now.
+- A footer row's `link:` took any text, so a letterhead could carry a
+  `javascript:` or `file:` target into the PDF. It now takes `https://`,
+  `http://`, `mailto:` or `tel:`, and anything else stops the build with the
+  row's name, as the schema in the editor already says.
+
 ## [0.9.2] — 2026-11-15
 
 ### Fixed

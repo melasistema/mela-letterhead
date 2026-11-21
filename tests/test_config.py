@@ -599,6 +599,53 @@ class TestFooterRows:
             config_module.resolve(make_config(tmp_path, text), make_document(tmp_path), "en")
 
 
+class TestFooterLinks:
+    def _row(self, tmp_path, written):
+        text = MINIMAL.replace("        - hello@acme.example", written)
+        resolved = config_module.resolve(
+            make_config(tmp_path, text), make_document(tmp_path), "en"
+        )
+        return resolved["footer"]["columns"][0]["rows"][2]
+
+    def test_words_link_where_they_are_told(self, tmp_path):
+        row = self._row(
+            tmp_path,
+            "        - value: Letterhead Studio\n          link: https://letterheadstudio.eu",
+        )
+        assert row["value"] == "Letterhead Studio"
+        assert row["link"] == "https://letterheadstudio.eu"
+
+    @pytest.mark.parametrize(
+        "value", ["'@studio'", "'@studio@mastodon.social'", "info@", "a@b"]
+    )
+    def test_a_handle_is_not_an_email_address(self, tmp_path, value):
+        assert self._row(tmp_path, f"        - {value}")["link"] is None
+
+    @pytest.mark.parametrize(
+        "value, link",
+        [
+            ("https://acme.example/about", "https://acme.example/about"),
+            ("www.acme.example", "https://www.acme.example"),
+            ("acme.example", None),
+        ],
+    )
+    def test_a_web_address_links_itself(self, tmp_path, value, link):
+        assert self._row(tmp_path, f"        - {value}")["link"] == link
+
+    def test_a_telephone(self, tmp_path):
+        row = self._row(
+            tmp_path, "        - value: +39 02 1234\n          link: tel:+39021234"
+        )
+        assert row["link"] == "tel:+39021234"
+
+    @pytest.mark.parametrize(
+        "link", ["javascript:alert(1)", "file:///etc/passwd", "acme.example", "https://"]
+    )
+    def test_any_other_target_is_refused_by_name(self, tmp_path, link):
+        with pytest.raises(ConfigError, match=r"rows\[2\]\.link"):
+            self._row(tmp_path, f"        - value: Web\n          link: '{link}'")
+
+
 class TestPdfStandard:
     def _resolve(self, tmp_path, written):
         text = MINIMAL + f"pdf:\n  standard: {written}\n"
